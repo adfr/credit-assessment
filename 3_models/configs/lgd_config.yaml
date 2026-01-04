@@ -1,0 +1,105 @@
+# LGD (Loss Given Default) Model Configuration
+
+model:
+  name: "lgd_model"
+  version: "1.0.0"
+  type: "regression"
+  target: "lgd"
+  target_bounds: [0.0, 1.0]
+
+features:
+  # Collateral Features
+  - ltv_ratio
+  - collateral_type  # Will be encoded
+  - collateral_coverage_ratio
+
+  # Financial Ratios
+  - debt_to_equity
+  - debt_to_assets
+  - current_ratio
+  - quick_ratio
+  - interest_coverage_ratio
+
+  # Bureau Features
+  - credit_score_normalized
+  - utilization_rate
+
+  # Loan Features
+  - loan_to_revenue_ratio
+  - loan_to_assets_ratio
+  - term_months
+  - interest_rate
+
+  # Industry Features
+  - industry_risk_tier
+
+training:
+  test_size: 0.2
+  validation_size: 0.1
+  random_state: 42
+
+  # Cross-validation settings
+  cv_folds: 5
+  cv_shuffle: true
+
+  # Only train on defaulted loans
+  filter_defaults_only: true
+
+hyperparameters:
+  # Gradient Boosting Regressor parameters
+  gradient_boosting:
+    n_estimators: 150
+    max_depth: 5
+    learning_rate: 0.05
+    min_samples_split: 10
+    min_samples_leaf: 5
+    subsample: 0.8
+    loss: "huber"  # More robust to outliers
+
+  # XGBoost Regressor parameters
+  xgboost:
+    n_estimators: 150
+    max_depth: 5
+    learning_rate: 0.05
+    min_child_weight: 5
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    objective: "reg:squarederror"
+
+  # Random Forest parameters
+  random_forest:
+    n_estimators: 100
+    max_depth: 8
+    min_samples_split: 10
+    min_samples_leaf: 5
+
+# LGD assumptions by collateral type (for comparison)
+lgd_assumptions:
+  real_estate: 0.35
+  equipment: 0.45
+  inventory: 0.55
+  receivables: 0.55
+  securities: 0.40
+  unsecured: 0.75
+
+evaluation:
+  metrics:
+    - mae
+    - rmse
+    - mse
+    - r2
+    - mape
+
+  # Performance targets
+  targets:
+    max_mae: 0.15
+    max_rmse: 0.20
+    min_r2: 0.30
+
+mlflow:
+  experiment_name: "lgd_model_training"
+  tracking_uri: "./mlruns"
+  log_models: true
+  log_artifacts: true

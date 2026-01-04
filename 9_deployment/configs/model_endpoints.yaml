@@ -1,0 +1,87 @@
+# Model Endpoints Configuration
+# Defines all ML model endpoints to be deployed
+
+endpoints:
+  - name: pd-model
+    description: Probability of Default Model
+    script: 4_endpoints/serve_pd.py
+    function: predict
+    cpu: 1.0
+    memory: 2
+    replicas: 2
+    environment:
+      MODEL_PATH: models/pd_model.pkl
+    health_check:
+      path: /health
+      interval: 30
+
+  - name: lgd-model
+    description: Loss Given Default Model
+    script: 4_endpoints/serve_lgd.py
+    function: predict
+    cpu: 1.0
+    memory: 2
+    replicas: 2
+    environment:
+      MODEL_PATH: models/lgd_model.pkl
+    health_check:
+      path: /health
+      interval: 30
+
+  - name: risk-engine
+    description: Complete Risk Scoring Engine
+    script: 4_endpoints/serve_risk_engine.py
+    function: score
+    cpu: 2.0
+    memory: 4
+    replicas: 2
+    environment:
+      PD_MODEL_PATH: models/pd_model.pkl
+      LGD_MODEL_PATH: models/lgd_model.pkl
+    health_check:
+      path: /health
+      interval: 30
+
+  - name: document-processor
+    description: Document Processing and Extraction
+    script: 4_endpoints/serve_documents.py
+    function: process
+    cpu: 2.0
+    memory: 4
+    replicas: 1
+    environment:
+      TESSDATA_PREFIX: /usr/share/tesseract-ocr/4.00/tessdata
+    health_check:
+      path: /health
+      interval: 60
+
+  - name: rag-query
+    description: RAG Query Endpoint
+    script: 4_endpoints/serve_rag.py
+    function: query
+    cpu: 2.0
+    memory: 4
+    replicas: 1
+    environment:
+      VECTOR_STORE_PATH: data/vector_store
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    health_check:
+      path: /health
+      interval: 60
+
+# Global settings
+settings:
+  default_timeout: 300
+  max_retries: 3
+  log_level: INFO
+
+# Authentication
+authentication:
+  enabled: true
+  type: api_key
+
+# Monitoring
+monitoring:
+  enabled: true
+  metrics_endpoint: /metrics
+  collect_interval: 60

@@ -1,0 +1,199 @@
+name: Credit Risk Assessment Platform
+description: |
+  End-to-end credit risk approval and monitoring platform featuring:
+  - ML models for Probability of Default (PD) and Loss Given Default (LGD)
+  - LangGraph agentic workflow with human-in-the-loop
+  - React/Next.js frontend with workflow visualization
+  - AI analyst workbench with RAG
+  - Real-time monitoring and drift detection
+
+author: Credit Risk Team
+specification_version: 1
+prototype_version: 1.0.0
+date: "2024-01-15"
+
+environment_variables:
+  ANTHROPIC_API_KEY:
+    default: ""
+    description: "API key for Claude AI services"
+    required: true
+  DATABASE_PATH:
+    default: "data/credit_risk.db"
+    description: "Path to SQLite database"
+  VECTOR_STORE_PATH:
+    default: "data/vector_store"
+    description: "Path to ChromaDB vector store"
+  LOG_LEVEL:
+    default: "INFO"
+    description: "Logging level"
+
+runtimes:
+  - editor: Workbench
+    kernel: Python 3.10
+    edition: Standard
+
+tasks:
+  - type: run_session
+    name: Install Dependencies
+    script: 0_setup/install_dependencies.py
+    short_summary: Install all required packages
+    cpu: 2
+    memory: 4
+
+  - type: run_session
+    name: Create Database Tables
+    script: 0_setup/create_tables.py
+    short_summary: Create SQLite database tables
+    cpu: 1
+    memory: 2
+
+  - type: run_session
+    name: Setup Vector Store
+    script: 0_setup/setup_vector_store.py
+    short_summary: Initialize ChromaDB vector store
+    cpu: 1
+    memory: 2
+
+  - type: run_session
+    name: Load Policy Documents
+    script: 0_setup/load_policy_docs.py
+    short_summary: Load policy documents into vector store
+    cpu: 2
+    memory: 4
+
+  - type: run_session
+    name: Generate Synthetic Data
+    script: 1_data/generate_synthetic.py
+    short_summary: Generate synthetic corporate loan data
+    cpu: 2
+    memory: 4
+
+  - type: run_session
+    name: Load Data to Database
+    script: 1_data/load_to_iceberg.py
+    short_summary: Load generated data into database
+    cpu: 2
+    memory: 4
+
+  - type: run_session
+    name: Train PD Model
+    script: 3_models/train_pd_model.py
+    short_summary: Train Probability of Default model
+    cpu: 4
+    memory: 8
+
+  - type: run_session
+    name: Train LGD Model
+    script: 3_models/train_lgd_model.py
+    short_summary: Train Loss Given Default model
+    cpu: 4
+    memory: 8
+
+  - type: run_session
+    name: Validate Models
+    script: 3_models/validate_models.py
+    short_summary: Run model validation tests
+    cpu: 2
+    memory: 4
+
+  - type: create_model
+    name: PD Model Endpoint
+    entity_label: pd_model
+    description: Probability of Default prediction endpoint
+    short_summary: Deploy PD model as REST API
+    default_resources:
+      cpu: 1
+      memory: 2
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
+  - type: create_model
+    name: LGD Model Endpoint
+    entity_label: lgd_model
+    description: Loss Given Default prediction endpoint
+    short_summary: Deploy LGD model as REST API
+    default_resources:
+      cpu: 1
+      memory: 2
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
+  - type: create_model
+    name: Risk Engine Endpoint
+    entity_label: risk_engine
+    description: Complete risk scoring engine
+    short_summary: Deploy risk engine as REST API
+    default_resources:
+      cpu: 2
+      memory: 4
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
+  - type: create_model
+    name: Document Processor Endpoint
+    entity_label: document_processor
+    description: Document extraction and processing
+    short_summary: Deploy document processor as REST API
+    default_resources:
+      cpu: 2
+      memory: 4
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
+  - type: create_model
+    name: RAG Query Endpoint
+    entity_label: rag_query
+    description: RAG-based policy query endpoint
+    short_summary: Deploy RAG query as REST API
+    default_resources:
+      cpu: 2
+      memory: 4
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
+  - type: start_application
+    name: Credit Risk API
+    subdomain: credit-api
+    script: 5_backend/start.sh
+    short_summary: Start FastAPI backend server
+    long_summary: Backend API server with workflow, applications, and analyst endpoints
+    cpu: 2
+    memory: 4
+    environment_variables:
+      PORT: 8000
+
+  - type: start_application
+    name: Credit Risk Frontend
+    subdomain: credit-app
+    script: 6_frontend/start.sh
+    short_summary: Start Next.js frontend
+    long_summary: React frontend with workflow visualization and AI analyst
+    cpu: 1
+    memory: 2
+    environment_variables:
+      NODE_ENV: production
+
+  - type: create_job
+    name: Daily Model Monitoring
+    entity_label: daily_monitoring
+    script: 7_monitoring/drift_detection.py
+    short_summary: Run daily drift detection
+    long_summary: Check for feature and target drift across all models
+    cpu: 2
+    memory: 4
+    schedule: "0 6 * * *"
+
+  - type: create_job
+    name: Weekly Model Retraining
+    entity_label: weekly_retrain
+    script: 3_models/train_pd_model.py
+    short_summary: Weekly model retraining
+    long_summary: Retrain models on latest data
+    cpu: 4
+    memory: 8
+    schedule: "0 0 * * 0"

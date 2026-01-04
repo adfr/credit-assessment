@@ -1,0 +1,133 @@
+# PD (Probability of Default) Model Configuration
+
+model:
+  name: "pd_model"
+  version: "1.0.0"
+  type: "classification"
+  target: "default_flag"
+
+features:
+  # Financial Ratios
+  - debt_to_equity
+  - debt_to_assets
+  - current_ratio
+  - quick_ratio
+  - interest_coverage_ratio
+  - return_on_assets
+  - return_on_equity
+  - profit_margin
+
+  # Bureau Features
+  - credit_score_normalized
+  - payment_index_trend
+  - utilization_rate
+  - derogatory_ratio
+
+  # Behavioral Features
+  - avg_days_past_due
+  - max_days_past_due
+  - dpd_volatility
+  - count_30dpd
+  - count_60dpd
+  - count_90dpd
+  - payment_consistency_score
+
+  # Loan Features
+  - loan_to_revenue_ratio
+  - loan_to_assets_ratio
+
+  # Industry Features
+  - industry_default_rate
+  - industry_risk_tier
+
+training:
+  test_size: 0.2
+  validation_size: 0.1
+  random_state: 42
+  stratify: true
+
+  # Cross-validation settings
+  cv_folds: 5
+  cv_shuffle: true
+
+  # Class imbalance handling
+  class_weight: "balanced"
+  use_smote: false
+  smote_ratio: 0.5
+
+hyperparameters:
+  # XGBoost parameters
+  xgboost:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.05
+    min_child_weight: 5
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    scale_pos_weight: null  # Auto-calculated based on class ratio
+    early_stopping_rounds: 20
+    eval_metric: "auc"
+
+  # Logistic Regression parameters
+  logistic:
+    C: 1.0
+    penalty: "l2"
+    solver: "lbfgs"
+    max_iter: 1000
+
+  # Gradient Boosting parameters
+  gradient_boosting:
+    n_estimators: 150
+    max_depth: 5
+    learning_rate: 0.05
+    min_samples_split: 10
+    min_samples_leaf: 5
+    subsample: 0.8
+
+thresholds:
+  # Decision thresholds
+  auto_approve: 0.03   # PD < 3% = auto-approve
+  refer: 0.10          # PD between 3-10% = refer
+  auto_decline: 0.15   # PD > 15% = auto-decline
+
+  # Risk grades
+  grades:
+    AAA: [0.0, 0.005]
+    AA: [0.005, 0.01]
+    A: [0.01, 0.02]
+    BBB: [0.02, 0.03]
+    BB: [0.03, 0.05]
+    B: [0.05, 0.10]
+    CCC: [0.10, 0.15]
+    CC: [0.15, 0.25]
+    C: [0.25, 0.50]
+    D: [0.50, 1.0]
+
+evaluation:
+  metrics:
+    - auc_roc
+    - gini
+    - ks_statistic
+    - brier_score
+    - log_loss
+    - precision_recall_auc
+
+  # Performance targets
+  targets:
+    min_auc: 0.70
+    min_gini: 0.40
+    max_brier: 0.10
+
+  # Calibration settings
+  calibration:
+    method: "isotonic"  # or "sigmoid"
+    cv_folds: 5
+    bins: 10
+
+mlflow:
+  experiment_name: "pd_model_training"
+  tracking_uri: "./mlruns"
+  log_models: true
+  log_artifacts: true

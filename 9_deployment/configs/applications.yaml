@@ -1,0 +1,87 @@
+# Applications Configuration
+# Defines all web applications to be deployed
+
+applications:
+  - name: credit-risk-api
+    description: Credit Risk Platform API
+    script: 5_backend/start.sh
+    subdomain: credit-api
+    cpu: 2.0
+    memory: 4
+    environment:
+      PORT: 8000
+      DATABASE_PATH: data/credit_risk.db
+      VECTOR_STORE_PATH: data/vector_store
+      LOG_LEVEL: INFO
+    health_check:
+      path: /health
+      interval: 30
+
+  - name: credit-risk-frontend
+    description: Credit Risk Platform Frontend
+    script: 6_frontend/start.sh
+    subdomain: credit-app
+    cpu: 1.0
+    memory: 2
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://credit-api.${CML_DOMAIN}
+    health_check:
+      path: /
+      interval: 30
+
+# Jobs Configuration
+jobs:
+  - name: daily-scoring
+    description: Daily Batch Scoring Job
+    script: 8_cde_jobs/spark_jobs/batch_scoring.py
+    schedule: "0 2 * * *"  # 2 AM daily
+    cpu: 4.0
+    memory: 8
+    timeout: 7200
+
+  - name: feature-engineering
+    description: Feature Engineering Pipeline
+    script: 8_cde_jobs/spark_jobs/feature_engineering.py
+    schedule: "0 1 * * *"  # 1 AM daily
+    cpu: 4.0
+    memory: 8
+    timeout: 7200
+
+  - name: model-monitoring
+    description: Model Drift Detection
+    script: 7_monitoring/drift_detection.py
+    schedule: "0 6 * * *"  # 6 AM daily
+    cpu: 2.0
+    memory: 4
+    timeout: 3600
+
+  - name: weekly-retraining
+    description: Weekly Model Retraining
+    script: 3_models/train_pd_model.py
+    schedule: "0 0 * * 0"  # Sunday midnight
+    cpu: 4.0
+    memory: 16
+    timeout: 14400
+
+# Global settings
+settings:
+  environment: production
+  log_retention_days: 30
+  backup_enabled: true
+
+# Security
+security:
+  ssl_enabled: true
+  cors_origins:
+    - https://*.cloudera.site
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+
+# Scaling
+scaling:
+  auto_scale: true
+  min_replicas: 1
+  max_replicas: 5
+  target_cpu_utilization: 70
