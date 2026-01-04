@@ -1,0 +1,790 @@
+{
+    "project": {
+      "name": "Credit Risk Approval Platform",
+      "description": "End-to-end credit risk assessment on Cloudera ML",
+      "stack": {
+        "backend": ["Python", "FastAPI", "LangGraph", "Redis"],
+        "frontend": ["React", "Next.js", "React Flow", "TailwindCSS"],
+        "ml": ["XGBoost", "scikit-learn", "MLflow"],
+        "data": ["SQLite/Iceberg", "Chroma"]
+      }
+    },
+    "phases": [
+      {
+        "id": 0,
+        "name": "Setup",
+        "description": "Project initialization and infrastructure",
+        "tasks": [
+          {
+            "id": "0.1",
+            "name": "Create directory structure",
+            "type": "shell",
+            "command": "mkdir -p 0_setup 1_data 2_features 3_models/configs 4_endpoints 5_backend/{api,agents/nodes,agents/tools,services,models,utils} 6_frontend/{app,components,lib,hooks,types} 7_monitoring 8_cde_jobs 9_deployment tests docs",
+            "priority": "critical"
+          },
+          {
+            "id": "0.2",
+            "name": "Create requirements.txt",
+            "type": "file",
+            "path": "requirements.txt",
+            "content_description": "Python dependencies: fastapi, uvicorn, langgraph, langchain, scikit-learn, xgboost, mlflow, chromadb, redis, faker, etc.",
+            "priority": "critical"
+          },
+          {
+            "id": "0.3",
+            "name": "Create install_dependencies.py",
+            "type": "file",
+            "path": "0_setup/install_dependencies.py",
+            "content_description": "Script to pip install requirements and setup Node.js",
+            "priority": "critical"
+          },
+          {
+            "id": "0.4",
+            "name": "Create create_tables.py",
+            "type": "file",
+            "path": "0_setup/create_tables.py",
+            "content_description": "Create SQLite tables: loan_history, payment_history, bureau_data, model_features, applications, predictions, workflow_state",
+            "priority": "critical"
+          },
+          {
+            "id": "0.5",
+            "name": "Create setup_vector_store.py",
+            "type": "file",
+            "path": "0_setup/setup_vector_store.py",
+            "content_description": "Initialize Chroma vector store with collections",
+            "priority": "high"
+          },
+          {
+            "id": "0.6",
+            "name": "Create load_policy_docs.py",
+            "type": "file",
+            "path": "0_setup/load_policy_docs.py",
+            "content_description": "Create and embed credit policy documents into vector store",
+            "priority": "high"
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "name": "Data Generation",
+        "description": "Generate synthetic corporate loan data",
+        "depends_on": [0],
+        "tasks": [
+          {
+            "id": "1.1",
+            "name": "Create generate_synthetic.py",
+            "type": "file",
+            "path": "1_data/generate_synthetic.py",
+            "content_description": "Generate synthetic data using Faker: 5000+ companies with financials, 10000+ loans with outcomes, bureau data, payment history. Include realistic correlations and 3-8% default rate.",
+            "priority": "critical",
+            "estimated_lines": 500
+          },
+          {
+            "id": "1.2",
+            "name": "Create load_to_iceberg.py",
+            "type": "file",
+            "path": "1_data/load_to_iceberg.py",
+            "content_description": "Load generated data into database tables",
+            "priority": "critical",
+            "estimated_lines": 100
+          },
+          {
+            "id": "1.3",
+            "name": "Create sample documents",
+            "type": "directory",
+            "path": "1_data/sample_documents/",
+            "content_description": "Sample financial statements and loan applications in markdown/text format",
+            "priority": "medium"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Feature Engineering",
+        "description": "Create ML features from raw data",
+        "depends_on": [1],
+        "tasks": [
+          {
+            "id": "2.1",
+            "name": "Create feature_pipeline.py",
+            "type": "file",
+            "path": "2_features/feature_pipeline.py",
+            "content_description": "Compute features: financial ratios, bureau features, behavioral features from payments, loan features, industry features. Output to model_features table.",
+            "priority": "critical",
+            "estimated_lines": 300
+          },
+          {
+            "id": "2.2",
+            "name": "Create data_quality.py",
+            "type": "file",
+            "path": "2_features/data_quality.py",
+            "content_description": "Data quality checks: missing values, outliers, distributions, correlations",
+            "priority": "medium",
+            "estimated_lines": 150
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Model Training",
+        "description": "Train and validate ML models",
+        "depends_on": [2],
+        "tasks": [
+          {
+            "id": "3.1",
+            "name": "Create pd_config.yaml",
+            "type": "file",
+            "path": "3_models/configs/pd_config.yaml",
+            "content_description": "PD model configuration: features, hyperparameters, CV settings",
+            "priority": "high",
+            "estimated_lines": 50
+          },
+          {
+            "id": "3.2",
+            "name": "Create lgd_config.yaml",
+            "type": "file",
+            "path": "3_models/configs/lgd_config.yaml",
+            "content_description": "LGD model configuration",
+            "priority": "high",
+            "estimated_lines": 40
+          },
+          {
+            "id": "3.3",
+            "name": "Create train_pd_model.py",
+            "type": "file",
+            "path": "3_models/train_pd_model.py",
+            "content_description": "Train PD models (LogReg, XGBoost, GBM), track with MLflow, evaluate (AUC, Gini, KS, Brier), save best model",
+            "priority": "critical",
+            "estimated_lines": 350
+          },
+          {
+            "id": "3.4",
+            "name": "Create train_lgd_model.py",
+            "type": "file",
+            "path": "3_models/train_lgd_model.py",
+            "content_description": "Train LGD model on defaulted loans, track with MLflow, evaluate (MAE, RMSE, R²)",
+            "priority": "critical",
+            "estimated_lines": 200
+          },
+          {
+            "id": "3.5",
+            "name": "Create validate_models.py",
+            "type": "file",
+            "path": "3_models/validate_models.py",
+            "content_description": "Model validation: discrimination tests, calibration tests (Hosmer-Lemeshow), stability tests (PSI, CSI)",
+            "priority": "high",
+            "estimated_lines": 300
+          },
+          {
+            "id": "3.6",
+            "name": "Create register_models.py",
+            "type": "file",
+            "path": "3_models/register_models.py",
+            "content_description": "Register models in MLflow Model Registry",
+            "priority": "high",
+            "estimated_lines": 80
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "Model Endpoints",
+        "description": "Create CML model serving endpoints",
+        "depends_on": [3],
+        "tasks": [
+          {
+            "id": "4.1",
+            "name": "Create serve_pd.py",
+            "type": "file",
+            "path": "4_endpoints/serve_pd.py",
+            "content_description": "CML endpoint: predict(args) returns PD probability",
+            "priority": "critical",
+            "estimated_lines": 80
+          },
+          {
+            "id": "4.2",
+            "name": "Create serve_lgd.py",
+            "type": "file",
+            "path": "4_endpoints/serve_lgd.py",
+            "content_description": "CML endpoint: predict(args) returns LGD value",
+            "priority": "critical",
+            "estimated_lines": 60
+          },
+          {
+            "id": "4.3",
+            "name": "Create serve_documents.py",
+            "type": "file",
+            "path": "4_endpoints/serve_documents.py",
+            "content_description": "Document processing: OCR + LLM extraction, returns structured JSON",
+            "priority": "high",
+            "estimated_lines": 150
+          },
+          {
+            "id": "4.4",
+            "name": "Create serve_rag.py",
+            "type": "file",
+            "path": "4_endpoints/serve_rag.py",
+            "content_description": "RAG service: query vector store, call Claude, return answer with sources",
+            "priority": "high",
+            "estimated_lines": 120
+          },
+          {
+            "id": "4.5",
+            "name": "Create serve_risk_engine.py",
+            "type": "file",
+            "path": "4_endpoints/serve_risk_engine.py",
+            "content_description": "Combined endpoint: call PD+LGD, compute Expected Loss, Economic Capital, Regulatory Capital (Basel IRB), RORAC, return decision recommendation",
+            "priority": "critical",
+            "estimated_lines": 200
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "Backend",
+        "description": "FastAPI backend with LangGraph workflow",
+        "depends_on": [4],
+        "tasks": [
+          {
+            "id": "5.1",
+            "name": "Create Pydantic models",
+            "type": "file_group",
+            "files": [
+              {"path": "5_backend/models/__init__.py", "lines": 10},
+              {"path": "5_backend/models/application.py", "lines": 80},
+              {"path": "5_backend/models/workflow.py", "lines": 60},
+              {"path": "5_backend/models/risk.py", "lines": 50},
+              {"path": "5_backend/models/decision.py", "lines": 40}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "5.2",
+            "name": "Create config.py",
+            "type": "file",
+            "path": "5_backend/config.py",
+            "content_description": "Configuration: endpoints, Redis, API keys, database",
+            "priority": "critical",
+            "estimated_lines": 60
+          },
+          {
+            "id": "5.3",
+            "name": "Create services",
+            "type": "file_group",
+            "files": [
+              {"path": "5_backend/services/__init__.py", "lines": 10},
+              {"path": "5_backend/services/document_service.py", "lines": 80},
+              {"path": "5_backend/services/model_service.py", "lines": 100},
+              {"path": "5_backend/services/rag_service.py", "lines": 80},
+              {"path": "5_backend/services/database_service.py", "lines": 150}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "5.4",
+            "name": "Create agents/state.py",
+            "type": "file",
+            "path": "5_backend/agents/state.py",
+            "content_description": "CreditWorkflowState TypedDict with all workflow fields",
+            "priority": "critical",
+            "estimated_lines": 50
+          },
+          {
+            "id": "5.5",
+            "name": "Create agent nodes",
+            "type": "file_group",
+            "files": [
+              {"path": "5_backend/agents/__init__.py", "lines": 10},
+              {"path": "5_backend/agents/nodes/__init__.py", "lines": 10},
+              {"path": "5_backend/agents/nodes/document_node.py", "lines": 80},
+              {"path": "5_backend/agents/nodes/validation_node.py", "lines": 100},
+              {"path": "5_backend/agents/nodes/enrichment_node.py", "lines": 80},
+              {"path": "5_backend/agents/nodes/compliance_node.py", "lines": 100},
+              {"path": "5_backend/agents/nodes/scoring_node.py", "lines": 120},
+              {"path": "5_backend/agents/nodes/review_node.py", "lines": 80},
+              {"path": "5_backend/agents/nodes/decision_node.py", "lines": 100}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "5.6",
+            "name": "Create agent tools",
+            "type": "file_group",
+            "files": [
+              {"path": "5_backend/agents/tools/__init__.py", "lines": 10},
+              {"path": "5_backend/agents/tools/model_tools.py", "lines": 60},
+              {"path": "5_backend/agents/tools/data_tools.py", "lines": 80},
+              {"path": "5_backend/agents/tools/rag_tools.py", "lines": 50},
+              {"path": "5_backend/agents/tools/notification_tools.py", "lines": 40}
+            ],
+            "priority": "high"
+          },
+          {
+            "id": "5.7",
+            "name": "Create agents/graph.py",
+            "type": "file",
+            "path": "5_backend/agents/graph.py",
+            "content_description": "LangGraph StateGraph: add nodes, define edges with conditional routing, compile with Redis checkpointer",
+            "priority": "critical",
+            "estimated_lines": 200
+          },
+          {
+            "id": "5.8",
+            "name": "Create api/applications.py",
+            "type": "file",
+            "path": "5_backend/api/applications.py",
+            "content_description": "FastAPI routes: POST/GET/DELETE applications",
+            "priority": "critical",
+            "estimated_lines": 150
+          },
+          {
+            "id": "5.9",
+            "name": "Create api/workflow.py",
+            "type": "file",
+            "path": "5_backend/api/workflow.py",
+            "content_description": "FastAPI routes: start/status/resume/history workflow",
+            "priority": "critical",
+            "estimated_lines": 120
+          },
+          {
+            "id": "5.10",
+            "name": "Create api/analyst.py",
+            "type": "file",
+            "path": "5_backend/api/analyst.py",
+            "content_description": "FastAPI routes: chat, suggestions, notes",
+            "priority": "high",
+            "estimated_lines": 100
+          },
+          {
+            "id": "5.11",
+            "name": "Create api/decisions.py",
+            "type": "file",
+            "path": "5_backend/api/decisions.py",
+            "content_description": "FastAPI routes: get decision, override, report",
+            "priority": "high",
+            "estimated_lines": 80
+          },
+          {
+            "id": "5.12",
+            "name": "Create api/websocket.py",
+            "type": "file",
+            "path": "5_backend/api/websocket.py",
+            "content_description": "WebSocket handler for real-time workflow updates",
+            "priority": "critical",
+            "estimated_lines": 100
+          },
+          {
+            "id": "5.13",
+            "name": "Create main.py",
+            "type": "file",
+            "path": "5_backend/main.py",
+            "content_description": "FastAPI app: include routers, CORS, WebSocket, startup/shutdown",
+            "priority": "critical",
+            "estimated_lines": 100
+          },
+          {
+            "id": "5.14",
+            "name": "Create start.sh",
+            "type": "file",
+            "path": "5_backend/start.sh",
+            "content_description": "Startup script for CML Application",
+            "priority": "critical",
+            "estimated_lines": 15
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "name": "Frontend",
+        "description": "React/Next.js frontend with workflow visualization",
+        "depends_on": [5],
+        "tasks": [
+          {
+            "id": "6.1",
+            "name": "Create package.json",
+            "type": "file",
+            "path": "6_frontend/package.json",
+            "content_description": "Dependencies: next, react, reactflow, tanstack/react-query, zustand, tailwindcss, radix-ui, lucide-react, socket.io-client",
+            "priority": "critical",
+            "estimated_lines": 50
+          },
+          {
+            "id": "6.2",
+            "name": "Create config files",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/tailwind.config.js", "lines": 30},
+              {"path": "6_frontend/next.config.js", "lines": 20},
+              {"path": "6_frontend/tsconfig.json", "lines": 30},
+              {"path": "6_frontend/postcss.config.js", "lines": 10}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "6.3",
+            "name": "Create UI components",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/components/ui/button.tsx", "lines": 50},
+              {"path": "6_frontend/components/ui/card.tsx", "lines": 40},
+              {"path": "6_frontend/components/ui/input.tsx", "lines": 30},
+              {"path": "6_frontend/components/ui/table.tsx", "lines": 80},
+              {"path": "6_frontend/components/ui/dialog.tsx", "lines": 60},
+              {"path": "6_frontend/components/ui/badge.tsx", "lines": 30},
+              {"path": "6_frontend/components/ui/tabs.tsx", "lines": 50},
+              {"path": "6_frontend/components/ui/progress.tsx", "lines": 30}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "6.4",
+            "name": "Create layout components",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/components/layout/Sidebar.tsx", "lines": 100},
+              {"path": "6_frontend/components/layout/Header.tsx", "lines": 60},
+              {"path": "6_frontend/components/layout/PageContainer.tsx", "lines": 40}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "6.5",
+            "name": "Create workflow components",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/components/workflow/WorkflowCanvas.tsx", "lines": 200},
+              {"path": "6_frontend/components/workflow/nodes/ProcessNode.tsx", "lines": 80},
+              {"path": "6_frontend/components/workflow/nodes/DecisionNode.tsx", "lines": 60},
+              {"path": "6_frontend/components/workflow/edges/AnimatedEdge.tsx", "lines": 50},
+              {"path": "6_frontend/components/workflow/WorkflowLegend.tsx", "lines": 40}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "6.6",
+            "name": "Create analyst components",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/components/analyst/ChatInterface.tsx", "lines": 150},
+              {"path": "6_frontend/components/analyst/ChatMessage.tsx", "lines": 60},
+              {"path": "6_frontend/components/analyst/DocumentViewer.tsx", "lines": 100},
+              {"path": "6_frontend/components/analyst/RiskMetrics.tsx", "lines": 120}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "6.7",
+            "name": "Create application components",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/components/applications/ApplicationForm.tsx", "lines": 250},
+              {"path": "6_frontend/components/applications/ApplicationCard.tsx", "lines": 80},
+              {"path": "6_frontend/components/applications/ApplicationTable.tsx", "lines": 150},
+              {"path": "6_frontend/components/applications/DocumentUpload.tsx", "lines": 100}
+            ],
+            "priority": "high"
+          },
+          {
+            "id": "6.8",
+            "name": "Create monitoring components",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/components/monitoring/DriftChart.tsx", "lines": 100},
+              {"path": "6_frontend/components/monitoring/PerformanceMetrics.tsx", "lines": 80},
+              {"path": "6_frontend/components/monitoring/AlertsList.tsx", "lines": 80}
+            ],
+            "priority": "medium"
+          },
+          {
+            "id": "6.9",
+            "name": "Create lib utilities",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/lib/api.ts", "lines": 150},
+              {"path": "6_frontend/lib/websocket.ts", "lines": 80},
+              {"path": "6_frontend/lib/utils.ts", "lines": 50},
+              {"path": "6_frontend/lib/constants.ts", "lines": 40}
+            ],
+            "priority": "critical"
+          },
+          {
+            "id": "6.10",
+            "name": "Create hooks",
+            "type": "file_group",
+            "files": [
+              {"path": "6_frontend/hooks/useWorkflow.ts", "lines": 80},
+              {"path": "6_frontend/hooks/useChat.ts", "lines": 60},
+              {"path": "6_frontend/hooks/useApplications.ts", "lines": 80},
+              {"path": "6_frontend/hooks/useWebSocket.ts", "lines": 60}
+            ],
+            "priority": "high"
+          },
+          {
+            "id": "6.11",
+            "name": "Create types/index.ts",
+            "type": "file",
+            "path": "6_frontend/types/index.ts",
+            "content_description": "TypeScript definitions for all API types",
+            "priority": "critical",
+            "estimated_lines": 150
+          },
+          {
+            "id": "6.12",
+            "name": "Create app/layout.tsx",
+            "type": "file",
+            "path": "6_frontend/app/layout.tsx",
+            "content_description": "Root layout with providers, sidebar, header",
+            "priority": "critical",
+            "estimated_lines": 80
+          },
+          {
+            "id": "6.13",
+            "name": "Create app/page.tsx",
+            "type": "file",
+            "path": "6_frontend/app/page.tsx",
+            "content_description": "Dashboard: stats cards, recent applications, pending reviews",
+            "priority": "high",
+            "estimated_lines": 150
+          },
+          {
+            "id": "6.14",
+            "name": "Create applications list page",
+            "type": "file",
+            "path": "6_frontend/app/applications/page.tsx",
+            "content_description": "Application list with filters and table",
+            "priority": "high",
+            "estimated_lines": 100
+          },
+          {
+            "id": "6.15",
+            "name": "Create new application page",
+            "type": "file",
+            "path": "6_frontend/app/applications/new/page.tsx",
+            "content_description": "Multi-step application form",
+            "priority": "high",
+            "estimated_lines": 80
+          },
+          {
+            "id": "6.16",
+            "name": "Create application detail page",
+            "type": "file",
+            "path": "6_frontend/app/applications/[id]/page.tsx",
+            "content_description": "Application summary with links to workflow/analyst",
+            "priority": "high",
+            "estimated_lines": 120
+          },
+          {
+            "id": "6.17",
+            "name": "Create workflow visualization page",
+            "type": "file",
+            "path": "6_frontend/app/applications/[id]/workflow/page.tsx",
+            "content_description": "Full-screen WorkflowCanvas with real-time updates",
+            "priority": "critical",
+            "estimated_lines": 150
+          },
+          {
+            "id": "6.18",
+            "name": "Create analyst workbench page",
+            "type": "file",
+            "path": "6_frontend/app/applications/[id]/analyst/page.tsx",
+            "content_description": "Split view: documents + chat, risk sidebar, action buttons",
+            "priority": "critical",
+            "estimated_lines": 200
+          },
+          {
+            "id": "6.19",
+            "name": "Create monitoring page",
+            "type": "file",
+            "path": "6_frontend/app/monitoring/page.tsx",
+            "content_description": "Model monitoring dashboard with charts",
+            "priority": "medium",
+            "estimated_lines": 150
+          },
+          {
+            "id": "6.20",
+            "name": "Create start.sh",
+            "type": "file",
+            "path": "6_frontend/start.sh",
+            "content_description": "Frontend startup script for CML",
+            "priority": "critical",
+            "estimated_lines": 15
+          },
+          {
+            "id": "6.21",
+            "name": "Create build.sh",
+            "type": "file",
+            "path": "6_frontend/build.sh",
+            "content_description": "npm install && npm run build",
+            "priority": "critical",
+            "estimated_lines": 10
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "name": "Monitoring",
+        "description": "Model monitoring and alerting",
+        "depends_on": [4],
+        "tasks": [
+          {
+            "id": "7.1",
+            "name": "Create drift_detection.py",
+            "type": "file",
+            "path": "7_monitoring/drift_detection.py",
+            "content_description": "Calculate PSI, CSI, generate alerts",
+            "priority": "medium",
+            "estimated_lines": 150
+          },
+          {
+            "id": "7.2",
+            "name": "Create performance_tracker.py",
+            "type": "file",
+            "path": "7_monitoring/performance_tracker.py",
+            "content_description": "Track realized model performance",
+            "priority": "medium",
+            "estimated_lines": 100
+          },
+          {
+            "id": "7.3",
+            "name": "Create alert_handler.py",
+            "type": "file",
+            "path": "7_monitoring/alert_handler.py",
+            "content_description": "Send notifications for alerts",
+            "priority": "low",
+            "estimated_lines": 60
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "name": "CDE Jobs",
+        "description": "Optional Spark jobs and Airflow DAGs",
+        "depends_on": [2],
+        "optional": true,
+        "tasks": [
+          {
+            "id": "8.1",
+            "name": "Create Spark feature_engineering.py",
+            "type": "file",
+            "path": "8_cde_jobs/spark_jobs/feature_engineering.py",
+            "content_description": "Distributed feature computation",
+            "priority": "low",
+            "estimated_lines": 200
+          },
+          {
+            "id": "8.2",
+            "name": "Create Spark batch_scoring.py",
+            "type": "file",
+            "path": "8_cde_jobs/spark_jobs/batch_scoring.py",
+            "content_description": "Batch score all active loans",
+            "priority": "low",
+            "estimated_lines": 150
+          },
+          {
+            "id": "8.3",
+            "name": "Create credit_workflow_dag.py",
+            "type": "file",
+            "path": "8_cde_jobs/airflow_dags/credit_workflow_dag.py",
+            "content_description": "Airflow DAG for credit workflow",
+            "priority": "low",
+            "estimated_lines": 100
+          },
+          {
+            "id": "8.4",
+            "name": "Create retraining_dag.py",
+            "type": "file",
+            "path": "8_cde_jobs/airflow_dags/retraining_dag.py",
+            "content_description": "Airflow DAG for model retraining",
+            "priority": "low",
+            "estimated_lines": 80
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "name": "Deployment",
+        "description": "Deployment scripts and configuration",
+        "depends_on": [5, 6],
+        "tasks": [
+          {
+            "id": "9.1",
+            "name": "Create deploy_all.py",
+            "type": "file",
+            "path": "9_deployment/deploy_all.py",
+            "content_description": "Master deployment script",
+            "priority": "high",
+            "estimated_lines": 150
+          },
+          {
+            "id": "9.2",
+            "name": "Create config files",
+            "type": "file_group",
+            "files": [
+              {"path": "9_deployment/configs/model_endpoints.yaml", "lines": 40},
+              {"path": "9_deployment/configs/applications.yaml", "lines": 30}
+            ],
+            "priority": "high"
+          },
+          {
+            "id": "9.3",
+            "name": "Create tests",
+            "type": "directory",
+            "path": "tests/",
+            "content_description": "Test suite for models, agents, API",
+            "priority": "medium"
+          },
+          {
+            "id": "9.4",
+            "name": "Create documentation",
+            "type": "file_group",
+            "files": [
+              {"path": "docs/architecture.md", "lines": 200},
+              {"path": "docs/api_reference.md", "lines": 150},
+              {"path": "docs/deployment_guide.md", "lines": 100},
+              {"path": "docs/user_guide.md", "lines": 150}
+            ],
+            "priority": "medium"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "name": "Integration",
+        "description": "Final integration and testing",
+        "depends_on": [9],
+        "tasks": [
+          {
+            "id": "10.1",
+            "name": "Complete .project-metadata.yaml",
+            "type": "file",
+            "path": ".project-metadata.yaml",
+            "content_description": "Full CML AMP configuration with all tasks",
+            "priority": "critical",
+            "estimated_lines": 300
+          },
+          {
+            "id": "10.2",
+            "name": "Create README.md",
+            "type": "file",
+            "path": "README.md",
+            "content_description": "Project documentation with setup instructions",
+            "priority": "high",
+            "estimated_lines": 200
+          },
+          {
+            "id": "10.3",
+            "name": "End-to-end testing",
+            "type": "manual",
+            "content_description": "Test complete flow from data generation to UI",
+            "priority": "critical"
+          }
+        ]
+      }
+    ],
+    "mvp_tasks": [
+      "1.1", "3.3", "3.4", "4.1", "4.2", "4.5",
+      "5.4", "5.5", "5.7", "5.8", "5.9", "5.12", "5.13",
+      "6.1", "6.2", "6.5", "6.6", "6.9", "6.11", "6.12", "6.17", "6.18"
+    ],
+    "estimated_total_lines": 8500
+  }
