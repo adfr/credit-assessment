@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -26,142 +26,246 @@ async function fetchApi<T>(endpoint: string, options: ApiOptions = {}): Promise<
   return response.json();
 }
 
-// Applications API
-export const applicationsApi = {
-  list: (params?: { status?: string; limit?: number; offset?: number }) => {
+// Types
+export interface Loan {
+  loan_id: string;
+  company_name: string;
+  industry: string;
+  region: string;
+  country: string;
+  original_balance: number;
+  outstanding_balance: number;
+  interest_rate: number;
+  term_months: number;
+  purpose: string;
+  collateral_type: string;
+  collateral_value: number;
+  disbursement_date: string;
+  maturity_date: string;
+  last_payment_date: string;
+  last_payment_amount: number;
+  days_past_due: number;
+  payment_status: string;
+  status: string;
+  pd_score: number;
+  lgd_score: number;
+  risk_grade: string;
+  annual_revenue: number;
+  net_income: number;
+  total_assets: number;
+  total_liabilities: number;
+  regulatory_capital?: number;
+  expected_loss?: number;
+  risk_weighted_assets?: number;
+}
+
+export interface PortfolioSummary {
+  loan_count: number;
+  total_exposure: number;
+  total_original: number;
+  avg_pd: number;
+  avg_lgd: number;
+  avg_rate: number;
+  active_count: number;
+  defaulted_count: number;
+  current_count: number;
+  delinquent_count: number;
+  default_count: number;
+  regulatory_capital: number;
+  economic_capital: number;
+  expected_loss: number;
+  var_999: number;
+  risk_weighted_assets: number;
+  reg_capital_ratio: number;
+  econ_capital_ratio: number;
+}
+
+export interface CapitalMetrics {
+  regulatory_capital: number;
+  economic_capital: number;
+  risk_weighted_assets: number;
+  expected_loss: number;
+  var_999: number;
+  reg_capital_ratio: number;
+  econ_capital_ratio: number;
+  total_exposure: number;
+}
+
+export interface RiskDistribution {
+  distribution: Array<{
+    risk_grade: string;
+    count: number;
+    exposure: number;
+    percentage: number;
+    avg_pd: number;
+  }>;
+  total_exposure: number;
+}
+
+export interface ConcentrationData {
+  dimension: string;
+  hhi: number;
+  concentration_level: string;
+  breakdown: Array<{
+    category: string;
+    count: number;
+    exposure: number;
+    percentage: number;
+    avg_pd: number;
+    avg_lgd: number;
+  }>;
+  total_exposure: number;
+}
+
+export interface LargeExposures {
+  threshold_pct: number;
+  threshold_amount: number;
+  total_exposure: number;
+  count: number;
+  exposures: Array<{
+    loan_id: string;
+    company_name: string;
+    industry: string;
+    outstanding_balance: number;
+    percentage: number;
+    risk_grade: string;
+    pd_score: number;
+  }>;
+  total_large_exposure: number;
+  large_exposure_pct: number;
+}
+
+export interface MigrationMatrix {
+  period_months: number;
+  grades: string[];
+  matrix: Record<string, Record<string, number>>;
+}
+
+export interface VintageData {
+  vintages: Array<{
+    vintage: string;
+    loan_count: number;
+    original_volume: number;
+    current_exposure: number;
+    default_count: number;
+    default_rate: number;
+    default_exposure: number;
+    loss_rate: number;
+    avg_pd: number;
+  }>;
+  total_vintages: number;
+}
+
+export interface Repayment {
+  repayment_id: number;
+  loan_id: string;
+  payment_date: string;
+  payment_amount: number;
+  principal_amount: number;
+  interest_amount: number;
+  balance_after: number;
+  status: string;
+}
+
+export interface ChatResponse {
+  message: string;
+  sources: Array<{ title: string; category: string }>;
+  portfolio_context: PortfolioSummary | null;
+}
+
+// Portfolio API
+export const portfolioApi = {
+  getSummary: () => fetchApi<PortfolioSummary>("/portfolio/summary"),
+
+  getRiskDistribution: () => fetchApi<RiskDistribution>("/portfolio/risk-distribution"),
+
+  getCapital: () => fetchApi<CapitalMetrics>("/portfolio/capital"),
+};
+
+// Loans API
+export const loansApi = {
+  list: (params?: {
+    status?: string;
+    risk_grade?: string;
+    industry?: string;
+    region?: string;
+    payment_status?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
     const query = new URLSearchParams();
     if (params?.status) query.set("status", params.status);
+    if (params?.risk_grade) query.set("risk_grade", params.risk_grade);
+    if (params?.industry) query.set("industry", params.industry);
+    if (params?.region) query.set("region", params.region);
+    if (params?.payment_status) query.set("payment_status", params.payment_status);
     if (params?.limit) query.set("limit", params.limit.toString());
     if (params?.offset) query.set("offset", params.offset.toString());
     const queryStr = query.toString();
-    return fetchApi<{ applications: unknown[]; count: number }>(
-      `/applications${queryStr ? `?${queryStr}` : ""}`
+    return fetchApi<{ loans: Loan[]; total: number; limit: number; offset: number }>(
+      `/loans${queryStr ? `?${queryStr}` : ""}`
     );
   },
 
-  get: (id: string) => fetchApi<{ application: unknown }>(`/applications/${id}`),
+  get: (id: string) => fetchApi<Loan>(`/loans/${id}`),
 
-  create: (data: unknown) =>
-    fetchApi<{ application_id: string }>("/applications", {
+  getRepayments: (id: string) =>
+    fetchApi<{ loan_id: string; repayments: Repayment[]; count: number }>(`/loans/${id}/repayments`),
+
+  create: (data: {
+    company_name: string;
+    industry: string;
+    region: string;
+    country: string;
+    loan_amount: number;
+    interest_rate?: number;
+    term_months?: number;
+    purpose?: string;
+    collateral_type?: string;
+    collateral_value?: number;
+    pd_score?: number;
+    lgd_score?: number;
+    risk_grade?: string;
+  }) =>
+    fetchApi<{ loan_id: string; message: string }>("/loans", {
       method: "POST",
       body: data,
     }),
-
-  updateStatus: (id: string, status: string, workflowId?: string) =>
-    fetchApi<{ message: string }>(`/applications/${id}/status`, {
-      method: "PUT",
-      body: { status, workflow_id: workflowId },
-    }),
 };
 
-// Workflow API
-export const workflowApi = {
-  start: (applicationId: string, autoApprove: boolean = true) =>
-    fetchApi<{ workflow_id: string }>("/workflow/start", {
-      method: "POST",
-      body: { application_id: applicationId, auto_approve: autoApprove },
-    }),
+// Analytics API
+export const analyticsApi = {
+  getConcentration: (dimension: string) =>
+    fetchApi<ConcentrationData>(`/analytics/concentration/${dimension}`),
 
-  getStatus: (workflowId: string) =>
-    fetchApi<{ workflow: unknown }>(`/workflow/${workflowId}`),
-
-  getSteps: (workflowId: string) =>
-    fetchApi<{ steps: unknown[]; current_step: string }>(`/workflow/${workflowId}/steps`),
-
-  resume: (workflowId: string, decision: string, notes?: string) =>
-    fetchApi<{ message: string }>(`/workflow/${workflowId}/resume`, {
-      method: "POST",
-      body: { workflow_id: workflowId, decision, notes },
-    }),
-
-  cancel: (workflowId: string) =>
-    fetchApi<{ message: string }>(`/workflow/${workflowId}/cancel`, {
-      method: "POST",
-    }),
-
-  list: (status?: string) => {
-    const query = status ? `?status=${status}` : "";
-    return fetchApi<{ workflows: unknown[] }>(`/workflow${query}`);
+  getLargeExposures: (threshold?: number) => {
+    const query = threshold ? `?threshold=${threshold}` : "";
+    return fetchApi<LargeExposures>(`/analytics/large-exposures${query}`);
   },
+
+  getMigrationMatrix: (period?: number) => {
+    const query = period ? `?period=${period}` : "";
+    return fetchApi<MigrationMatrix>(`/analytics/migration-matrix${query}`);
+  },
+
+  getVintageAnalysis: () => fetchApi<VintageData>("/analytics/vintage"),
 };
 
-// Analyst API
-export const analystApi = {
-  chat: (message: string, applicationId?: string, includeRiskContext: boolean = true) =>
-    fetchApi<{ message: unknown; sources: unknown[] }>("/analyst/chat", {
+// AI Assistant API
+export const assistantApi = {
+  chat: (message: string, includeContext: boolean = true) =>
+    fetchApi<ChatResponse>("/assistant/chat", {
       method: "POST",
-      body: {
-        message,
-        application_id: applicationId,
-        include_risk_context: includeRiskContext,
-      },
+      body: { message, include_portfolio_context: includeContext },
     }),
-
-  queryPolicies: (question: string, nResults: number = 5) =>
-    fetchApi<{ answer: string; sources: unknown[] }>("/analyst/query-policies", {
-      method: "POST",
-      body: { question, n_results: nResults },
-    }),
-
-  getSuggestions: (applicationId: string) =>
-    fetchApi<{ suggestions: string[] }>("/analyst/suggestions", {
-      method: "POST",
-      body: { application_id: applicationId },
-    }),
-
-  getRiskSummary: (applicationId: string) =>
-    fetchApi<{ summary: unknown }>(`/analyst/${applicationId}/risk-summary`),
 };
 
-// Decisions API
-export const decisionsApi = {
-  get: (applicationId: string) =>
-    fetchApi<{ decision: unknown }>(`/decisions/${applicationId}`),
-
-  create: (data: unknown) =>
-    fetchApi<{ message: string }>("/decisions", {
-      method: "POST",
-      body: data,
-    }),
-
-  override: (applicationId: string, data: unknown) =>
-    fetchApi<{ message: string; override: unknown }>(`/decisions/${applicationId}/override`, {
-      method: "PUT",
-      body: data,
-    }),
-
-  getRecommendation: (applicationId: string) =>
-    fetchApi<{ recommendation: unknown; risk_metrics: unknown }>(
-      `/decisions/${applicationId}/recommendation`
-    ),
-
-  getStats: () => fetchApi<{ stats: unknown }>("/decisions/stats/summary"),
+// Monitoring API
+export const monitoringApi = {
+  getMetrics: () =>
+    fetchApi<{
+      pd_model: Record<string, unknown>;
+      lgd_model: Record<string, unknown>;
+      system: Record<string, unknown>;
+    }>("/monitoring/metrics"),
 };
-
-// WebSocket helper
-export function createWebSocket(
-  endpoint: string,
-  onMessage: (data: unknown) => void,
-  onError?: (error: Event) => void,
-  onClose?: () => void
-): WebSocket {
-  const wsUrl = API_BASE_URL.replace(/^http/, "ws");
-  const ws = new WebSocket(`${wsUrl}${endpoint}`);
-
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    onMessage(data);
-  };
-
-  ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
-    onError?.(error);
-  };
-
-  ws.onclose = () => {
-    console.log("WebSocket closed");
-    onClose?.();
-  };
-
-  return ws;
-}

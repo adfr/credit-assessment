@@ -52,54 +52,86 @@ def create_companies_table(cursor: sqlite3.Cursor):
     print("  [OK] companies table created")
 
 
-def create_loan_history_table(cursor: sqlite3.Cursor):
-    """Create loan history table for historical corporate loans."""
+def create_loans_table(cursor: sqlite3.Cursor):
+    """Create loans table for portfolio loans."""
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS loan_history (
+        CREATE TABLE IF NOT EXISTS loans (
             loan_id TEXT PRIMARY KEY,
-            company_id TEXT NOT NULL,
-            loan_amount REAL NOT NULL,
+            company_name TEXT NOT NULL,
+            industry TEXT NOT NULL,
+            region TEXT,
+            country TEXT,
+
+            -- Loan Amounts
+            original_balance REAL NOT NULL,
+            outstanding_balance REAL NOT NULL,
             interest_rate REAL NOT NULL,
             term_months INTEGER NOT NULL,
+
+            -- Loan Details
             purpose TEXT,
             collateral_type TEXT,
-            collateral_value REAL,
-            ltv_ratio REAL,
-            origination_date DATE NOT NULL,
+            collateral_value REAL DEFAULT 0,
+
+            -- Dates
+            disbursement_date DATE NOT NULL,
             maturity_date DATE,
-            loan_status TEXT NOT NULL,
-            default_flag INTEGER DEFAULT 0,
-            days_to_default INTEGER,
-            loss_amount REAL,
-            recovery_amount REAL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (company_id) REFERENCES companies(company_id)
+
+            -- Payment Tracking
+            last_payment_date DATE,
+            last_payment_amount REAL DEFAULT 0,
+            days_past_due INTEGER DEFAULT 0,
+            payment_status TEXT DEFAULT 'current',  -- current, delinquent, default
+
+            -- Loan Status
+            status TEXT DEFAULT 'active',  -- active, paid_off, defaulted
+
+            -- Risk Scores
+            pd_score REAL DEFAULT 0.05,
+            lgd_score REAL DEFAULT 0.45,
+            risk_grade TEXT DEFAULT 'BBB',
+
+            -- Company Financials (for risk context)
+            annual_revenue REAL,
+            net_income REAL,
+            total_assets REAL,
+            total_liabilities REAL,
+
+            -- Documents (JSON array of attached documents)
+            documents_json TEXT,
+
+            -- Timestamps
+            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loan_company ON loan_history(company_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loan_status ON loan_history(loan_status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loan_default ON loan_history(default_flag)")
-    print("  [OK] loan_history table created")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_payment_status ON loans(payment_status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_industry ON loans(industry)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_risk_grade ON loans(risk_grade)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_loans_disbursement ON loans(disbursement_date)")
+    print("  [OK] loans table created")
 
 
-def create_payment_history_table(cursor: sqlite3.Cursor):
-    """Create payment history table for tracking payments."""
+def create_repayments_table(cursor: sqlite3.Cursor):
+    """Create repayments table for tracking loan payments."""
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS payment_history (
-            payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        CREATE TABLE IF NOT EXISTS repayments (
+            repayment_id INTEGER PRIMARY KEY AUTOINCREMENT,
             loan_id TEXT NOT NULL,
             payment_date DATE NOT NULL,
-            scheduled_amount REAL NOT NULL,
-            actual_amount REAL,
-            days_past_due INTEGER DEFAULT 0,
-            payment_status TEXT NOT NULL,
+            payment_amount REAL NOT NULL,
+            principal_amount REAL DEFAULT 0,
+            interest_amount REAL DEFAULT 0,
+            balance_after REAL,
+            status TEXT DEFAULT 'completed',  -- completed, pending, failed
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (loan_id) REFERENCES loan_history(loan_id)
+            FOREIGN KEY (loan_id) REFERENCES loans(loan_id)
         )
     """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_loan ON payment_history(loan_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_date ON payment_history(payment_date)")
-    print("  [OK] payment_history table created")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_repayments_loan ON repayments(loan_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_repayments_date ON repayments(payment_date)")
+    print("  [OK] repayments table created")
 
 
 def create_bureau_data_table(cursor: sqlite3.Cursor):
@@ -183,164 +215,14 @@ def create_model_features_table(cursor: sqlite3.Cursor):
     print("  [OK] model_features table created")
 
 
-def create_applications_table(cursor: sqlite3.Cursor):
-    """Create applications table for new credit applications."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS applications (
-            application_id TEXT PRIMARY KEY,
-            company_id TEXT,
-            company_name TEXT NOT NULL,
-            industry TEXT,
-
-            -- Loan Request
-            requested_amount REAL NOT NULL,
-            requested_term_months INTEGER,
-            purpose TEXT,
-            collateral_type TEXT,
-            collateral_value REAL,
-
-            -- Financial Data (from application)
-            annual_revenue REAL,
-            net_income REAL,
-            total_assets REAL,
-            total_liabilities REAL,
-
-            -- Application Status
-            status TEXT DEFAULT 'pending',
-            workflow_id TEXT,
-            current_step TEXT,
-
-            -- Documents
-            documents_json TEXT,
-
-            -- Timestamps
-            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            decided_at TIMESTAMP
-        )
-    """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_status ON applications(status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_submitted ON applications(submitted_at)")
-    print("  [OK] applications table created")
 
 
-def create_predictions_table(cursor: sqlite3.Cursor):
-    """Create predictions table for model prediction audit trail."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS predictions (
-            prediction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            application_id TEXT NOT NULL,
-            model_version TEXT NOT NULL,
-
-            -- Risk Scores
-            pd_score REAL,
-            lgd_score REAL,
-            ead REAL,
-            expected_loss REAL,
-            economic_capital REAL,
-            regulatory_capital REAL,
-            rorac REAL,
-
-            -- Feature Values (JSON)
-            features_json TEXT,
-
-            -- Model Decision
-            model_decision TEXT,
-            decision_threshold REAL,
-
-            -- Timestamps
-            predicted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-            FOREIGN KEY (application_id) REFERENCES applications(application_id)
-        )
-    """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pred_app ON predictions(application_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pred_date ON predictions(predicted_at)")
-    print("  [OK] predictions table created")
 
 
-def create_workflow_state_table(cursor: sqlite3.Cursor):
-    """Create workflow state table for LangGraph checkpoints."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS workflow_state (
-            checkpoint_id TEXT PRIMARY KEY,
-            application_id TEXT NOT NULL,
-            thread_id TEXT NOT NULL,
-
-            -- State Data (JSON)
-            state_json TEXT NOT NULL,
-
-            -- Step Tracking
-            current_step TEXT,
-            step_history_json TEXT,
-
-            -- Status
-            status TEXT DEFAULT 'running',
-            error_message TEXT,
-
-            -- Timestamps
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-            FOREIGN KEY (application_id) REFERENCES applications(application_id)
-        )
-    """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wf_app ON workflow_state(application_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wf_thread ON workflow_state(thread_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wf_status ON workflow_state(status)")
-    print("  [OK] workflow_state table created")
 
 
-def create_decisions_table(cursor: sqlite3.Cursor):
-    """Create decisions table for final credit decisions."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS decisions (
-            decision_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            application_id TEXT NOT NULL UNIQUE,
-
-            -- Decision Details
-            final_decision TEXT NOT NULL,
-            decision_type TEXT,  -- auto, manual, override
-            decision_reason TEXT,
-            conditions_json TEXT,
-
-            -- Approver Info
-            approved_by TEXT,
-            approved_amount REAL,
-            approved_rate REAL,
-            approved_term_months INTEGER,
-
-            -- Risk Metrics at Decision
-            pd_at_decision REAL,
-            lgd_at_decision REAL,
-            el_at_decision REAL,
-
-            -- Timestamps
-            decided_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-            FOREIGN KEY (application_id) REFERENCES applications(application_id)
-        )
-    """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_dec_app ON decisions(application_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_dec_decision ON decisions(final_decision)")
-    print("  [OK] decisions table created")
 
 
-def create_analyst_notes_table(cursor: sqlite3.Cursor):
-    """Create analyst notes table for review comments."""
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS analyst_notes (
-            note_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            application_id TEXT NOT NULL,
-            analyst_id TEXT,
-            note_text TEXT NOT NULL,
-            note_type TEXT DEFAULT 'general',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (application_id) REFERENCES applications(application_id)
-        )
-    """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_app ON analyst_notes(application_id)")
-    print("  [OK] analyst_notes table created")
 
 
 def create_monitoring_table(cursor: sqlite3.Cursor):
@@ -386,15 +268,10 @@ def create_all_tables(conn: sqlite3.Connection):
 
     # Create tables in order (respecting foreign key dependencies)
     create_companies_table(cursor)
-    create_loan_history_table(cursor)
-    create_payment_history_table(cursor)
+    create_loans_table(cursor)
+    create_repayments_table(cursor)
     create_bureau_data_table(cursor)
     create_model_features_table(cursor)
-    create_applications_table(cursor)
-    create_predictions_table(cursor)
-    create_workflow_state_table(cursor)
-    create_decisions_table(cursor)
-    create_analyst_notes_table(cursor)
     create_monitoring_table(cursor)
 
     conn.commit()

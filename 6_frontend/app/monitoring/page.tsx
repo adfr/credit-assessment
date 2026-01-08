@@ -1,34 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+interface MonitoringData {
+  pd_model: {
+    status: string;
+    version?: string;
+    trained_at?: string;
+    auc_roc?: number;
+    gini?: number;
+    ks_statistic?: number;
+    brier_score?: number;
+    log_loss?: number;
+  };
+  lgd_model: {
+    status: string;
+    version?: string;
+    trained_at?: string;
+    mse?: number;
+    rmse?: number;
+    mae?: number;
+    r2?: number;
+  };
+  system: {
+    uptime_seconds: number;
+    total_requests: number;
+    total_errors: number;
+    error_rate_percent: number;
+    avg_latency_ms: number;
+    applications_count: number;
+    workflows_count: number;
+  };
+}
+
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [metrics, setMetrics] = useState<MonitoringData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data - in production, this would come from the API
-  const modelMetrics = {
-    pd_model: {
-      name: "PD Model",
-      version: "1.0",
-      auc: 0.847,
-      gini: 0.694,
-      ks: 0.521,
-      lastUpdated: "2024-01-15",
-      status: "healthy",
-    },
-    lgd_model: {
-      name: "LGD Model",
-      version: "1.0",
-      mse: 0.0234,
-      r2: 0.782,
-      lastUpdated: "2024-01-15",
-      status: "healthy",
-    },
+  const fetchMetrics = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/monitoring/metrics`);
+      if (!res.ok) throw new Error('Failed to fetch metrics');
+      const data = await res.json();
+      setMetrics(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load metrics');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchMetrics();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchMetrics, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const driftMetrics = [
     { feature: "debt_to_equity", psi: 0.023, status: "stable" },
@@ -109,105 +144,147 @@ export default function MonitoringPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Model Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* PD Model */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{modelMetrics.pd_model.name}</CardTitle>
-                  <Badge className={getStatusColor(modelMetrics.pd_model.status)}>
-                    {modelMetrics.pd_model.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">AUC-ROC</p>
-                    <p className="text-2xl font-bold">
-                      {modelMetrics.pd_model.auc.toFixed(3)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Gini</p>
-                    <p className="text-2xl font-bold">
-                      {modelMetrics.pd_model.gini.toFixed(3)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">KS Statistic</p>
-                    <p className="text-2xl font-bold">
-                      {modelMetrics.pd_model.ks.toFixed(3)}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400 mt-4">
-                  Version {modelMetrics.pd_model.version} · Last updated{" "}
-                  {modelMetrics.pd_model.lastUpdated}
-                </p>
-              </CardContent>
-            </Card>
+          {loading && !metrics && (
+            <div className="text-center py-8 text-gray-500">Loading metrics...</div>
+          )}
 
-            {/* LGD Model */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{modelMetrics.lgd_model.name}</CardTitle>
-                  <Badge className={getStatusColor(modelMetrics.lgd_model.status)}>
-                    {modelMetrics.lgd_model.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">MSE</p>
-                    <p className="text-2xl font-bold">
-                      {modelMetrics.lgd_model.mse.toFixed(4)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">R² Score</p>
-                    <p className="text-2xl font-bold">
-                      {modelMetrics.lgd_model.r2.toFixed(3)}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400 mt-4">
-                  Version {modelMetrics.lgd_model.version} · Last updated{" "}
-                  {modelMetrics.lgd_model.lastUpdated}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+              {error}
+            </div>
+          )}
 
-          {/* System Health */}
-          <Card>
-            <CardHeader>
-              <CardTitle>System Health</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-gray-500">API Uptime</p>
-                  <p className="text-2xl font-bold text-green-600">99.9%</p>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Avg Latency</p>
-                  <p className="text-2xl font-bold text-green-600">120ms</p>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Requests/day</p>
-                  <p className="text-2xl font-bold text-green-600">2,450</p>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Error Rate</p>
-                  <p className="text-2xl font-bold text-yellow-600">0.5%</p>
-                </div>
+          {metrics && (
+            <>
+              {/* Model Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* PD Model */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>PD Model</CardTitle>
+                      <Badge className={getStatusColor(metrics.pd_model.status)}>
+                        {metrics.pd_model.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">AUC-ROC</p>
+                        <p className="text-2xl font-bold">
+                          {metrics.pd_model.auc_roc?.toFixed(3) || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Gini</p>
+                        <p className="text-2xl font-bold">
+                          {metrics.pd_model.gini?.toFixed(3) || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">KS Statistic</p>
+                        <p className="text-2xl font-bold">
+                          {metrics.pd_model.ks_statistic?.toFixed(3) || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-4">
+                      Version {metrics.pd_model.version || '1.0'} · Trained{" "}
+                      {metrics.pd_model.trained_at ? new Date(metrics.pd_model.trained_at).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* LGD Model */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>LGD Model</CardTitle>
+                      <Badge className={getStatusColor(metrics.lgd_model.status)}>
+                        {metrics.lgd_model.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">R² Score</p>
+                        <p className="text-2xl font-bold">
+                          {metrics.lgd_model.r2?.toFixed(3) || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">RMSE</p>
+                        <p className="text-2xl font-bold">
+                          {metrics.lgd_model.rmse?.toFixed(4) || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">MAE</p>
+                        <p className="text-2xl font-bold">
+                          {metrics.lgd_model.mae?.toFixed(4) || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-4">
+                      Version {metrics.lgd_model.version || '1.0'} · Trained{" "}
+                      {metrics.lgd_model.trained_at ? new Date(metrics.lgd_model.trained_at).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* System Health */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Health</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Uptime</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {Math.floor(metrics.system.uptime_seconds / 60)}m
+                      </p>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Avg Latency</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {metrics.system.avg_latency_ms.toFixed(0)}ms
+                      </p>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Total Requests</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {metrics.system.total_requests.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className={`text-center p-4 rounded-lg ${metrics.system.error_rate_percent > 1 ? 'bg-red-50' : 'bg-green-50'}`}>
+                      <p className="text-sm text-gray-500">Error Rate</p>
+                      <p className={`text-2xl font-bold ${metrics.system.error_rate_percent > 1 ? 'text-red-600' : 'text-green-600'}`}>
+                        {metrics.system.error_rate_percent}%
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Applications</p>
+                      <p className="text-2xl font-bold text-gray-700">
+                        {metrics.system.applications_count}
+                      </p>
+                    </div>
+                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Workflows</p>
+                      <p className="text-2xl font-bold text-gray-700">
+                        {metrics.system.workflows_count}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="drift" className="space-y-6">

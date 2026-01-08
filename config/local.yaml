@@ -1,0 +1,86 @@
+# Local Development Configuration
+# Use with: APP_ENV=local
+
+environment: local
+
+# API Server
+api:
+  host: "127.0.0.1"
+  port: 8000
+  debug: true
+  reload: true
+
+# Database
+database:
+  url: "sqlite:///./data/credit_risk.db"
+  echo: false
+
+# Redis (disabled by default for local dev)
+redis:
+  url: "redis://localhost:6379"
+  enabled: false
+
+# Model Configuration
+models:
+  use_local: true  # Use local pickle files instead of endpoints
+  paths:
+    pd: "./data/models/pd/pd_model_latest.pkl"
+    lgd: "./data/models/lgd/lgd_model_latest.pkl"
+  # Endpoints (not used when use_local=true)
+  endpoints:
+    pd: null
+    lgd: null
+    document: null
+    rag: null
+
+# MLflow (Local Development)
+mlflow:
+  tracking_uri: "${MLFLOW_TRACKING_URI:-./mlruns}"
+  experiment_name: "${MLFLOW_EXPERIMENT_NAME:-credit_risk_local}"
+  registry_uri: null  # Same as tracking_uri by default
+
+# ChromaDB
+chromadb:
+  persist_directory: "./data/chroma_db"
+  collection_name: "policy_documents"
+
+# Decision Thresholds
+thresholds:
+  pd_auto_approve: 0.03
+  pd_refer: 0.10
+  pd_auto_decline: 0.15
+  min_rorac: 0.12
+
+# Workflow
+workflow:
+  timeout_seconds: 300
+  max_retries: 3
+
+# CORS (local development)
+cors:
+  origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+    - "http://localhost:5173"
+  allow_credentials: true
+  allow_methods: ["*"]
+  allow_headers: ["*"]
+
+# Security (relaxed for local dev)
+security:
+  ssl_enabled: false
+  rate_limiting_enabled: false
+  api_key_required: false
+
+# Logging
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # Console only for local
+
+# Feature Flags
+features:
+  enable_monitoring: false
+  enable_retraining: false
+  enable_document_processing: true
+  enable_rag: true

@@ -1,16 +1,35 @@
-name: Credit Risk Assessment Platform
+name: Credit Risk Portfolio Manager
 description: |
-  End-to-end credit risk approval and monitoring platform featuring:
-  - ML models for Probability of Default (PD) and Loss Given Default (LGD)
-  - LangGraph agentic workflow with human-in-the-loop
-  - React/Next.js frontend with workflow visualization
-  - AI analyst workbench with RAG
-  - Real-time monitoring and drift detection
+  Portfolio-level credit risk management platform with AI-powered analytics:
+
+  Core Capabilities:
+  - PD (Probability of Default) and LGD (Loss Given Default) ML models
+  - Portfolio risk metrics: VaR, Expected Loss, RWA, Capital requirements
+  - Rating distribution and concentration analysis (industry, region, grade)
+  - Smart AI assistant for portfolio questions with RAG-powered context
+
+  Main Screen (Portfolio Dashboard):
+  - Portfolio statistics and summary metrics
+  - Concentration risk by industry/region/risk grade
+  - Risk metrics: VaR (99.9%), Expected Loss, Regulatory & Economic Capital
+  - PD distribution and rating breakdown
+  - AI assistant panel for natural language queries
+
+  Loan Details Screen:
+  - Individual loan risk profile (PD, LGD, EL, capital)
+  - Repayment history and payment status
+  - Document attachments and financial data
+  - Risk grade and recommendation
+
+  Backend Reasoning Engine:
+  - LangGraph canvas-style agent for on-the-fly computations
+  - Tool-augmented reasoning for capital calculations
+  - RAG integration for policy-aware responses
 
 author: Credit Risk Team
 specification_version: 1
-prototype_version: 1.0.0
-date: "2024-01-15"
+prototype_version: 2.0.0
+date: "2025-01-07"
 
 environment_variables:
   ANTHROPIC_API_KEY:

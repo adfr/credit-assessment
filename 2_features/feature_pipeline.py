@@ -170,7 +170,8 @@ def calculate_behavioral_features(payments: pd.DataFrame, loans: pd.DataFrame) -
             "count_30dpd": (x["days_past_due"] >= 30).sum(),
             "count_60dpd": (x["days_past_due"] >= 60).sum(),
             "count_90dpd": (x["days_past_due"] >= 90).sum(),
-        })
+        }),
+        include_groups=False
     ).reset_index()
 
     payment_agg = payment_agg.merge(dpd_counts, on="loan_id", how="left")

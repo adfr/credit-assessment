@@ -1,5 +1,5 @@
 """
-Credit Risk Platform - FastAPI Application
+Credit Risk Platform - Portfolio Risk Management API
 Main entry point for the backend API.
 """
 
@@ -8,9 +8,9 @@ import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime
-import uuid
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -18,32 +18,25 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent))
 
 from config import settings
-from models import (
-    ApplicationCreate,
-    ApplicationResponse,
-    ApplicationStatus,
-    WorkflowStartRequest,
-    WorkflowStartResponse,
-    WorkflowStatus,
-    RiskDecision,
-)
+from services.portfolio_service import get_portfolio_service
+from services.capital_service import get_capital_service
 
 
 # Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    print("[INFO] Starting Credit Risk Platform API...")
+    print("[INFO] Starting Credit Risk Portfolio API...")
     print(f"[INFO] API running on {settings.api_host}:{settings.api_port}")
     yield
-    print("[INFO] Shutting down Credit Risk Platform API...")
+    print("[INFO] Shutting down Credit Risk Portfolio API...")
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="Credit Risk Platform API",
-    description="API for credit risk assessment and approval workflow",
-    version="1.0.0",
+    title="Credit Risk Portfolio API",
+    description="API for portfolio risk management and analytics",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -57,10 +50,32 @@ app.add_middleware(
 )
 
 
-# In-memory storage (replace with database in production)
-applications_db = {}
-workflows_db = {}
-websocket_connections = {}
+# Track API metrics
+api_metrics = {
+    "requests": 0,
+    "errors": 0,
+    "start_time": datetime.now(),
+    "latencies": [],
+}
+
+
+@app.middleware("http")
+async def track_metrics(request, call_next):
+    """Track API metrics."""
+    import time
+    start = time.time()
+    api_metrics["requests"] += 1
+
+    try:
+        response = await call_next(request)
+        latency = (time.time() - start) * 1000
+        api_metrics["latencies"].append(latency)
+        if len(api_metrics["latencies"]) > 1000:
+            api_metrics["latencies"] = api_metrics["latencies"][-1000:]
+        return response
+    except Exception as e:
+        api_metrics["errors"] += 1
+        raise e
 
 
 # ============================================================================
@@ -73,280 +88,319 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0",
+        "version": "2.0.0",
     }
 
 
 # ============================================================================
-# Application Endpoints
+# Portfolio Endpoints
 # ============================================================================
 
-@app.post("/api/applications", response_model=dict)
-async def create_application(application: ApplicationCreate):
-    """Create a new credit application."""
-    application_id = f"APP-{uuid.uuid4().hex[:8].upper()}"
+@app.get("/api/portfolio/summary")
+async def get_portfolio_summary():
+    """Get portfolio health summary for dashboard."""
+    service = get_portfolio_service()
+    return service.get_portfolio_summary()
 
-    app_data = {
-        "application_id": application_id,
-        "status": ApplicationStatus.PENDING,
-        "customer": application.customer.model_dump(),
-        "loan": application.loan.model_dump(),
-        "documents": [doc.model_dump() for doc in application.documents] if application.documents else [],
-        "submitted_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
-        "workflow_id": None,
-    }
 
-    applications_db[application_id] = app_data
+@app.get("/api/portfolio/risk-distribution")
+async def get_risk_distribution():
+    """Get risk grade distribution."""
+    service = get_portfolio_service()
+    return service.get_risk_distribution()
+
+
+@app.get("/api/portfolio/capital")
+async def get_capital_metrics():
+    """Get regulatory and economic capital metrics."""
+    service = get_portfolio_service()
+    summary = service.get_portfolio_summary()
 
     return {
-        "application_id": application_id,
-        "status": "pending",
-        "message": "Application created successfully",
+        "regulatory_capital": summary["regulatory_capital"],
+        "economic_capital": summary["economic_capital"],
+        "risk_weighted_assets": summary["risk_weighted_assets"],
+        "expected_loss": summary["expected_loss"],
+        "var_999": summary["var_999"],
+        "reg_capital_ratio": summary["reg_capital_ratio"],
+        "econ_capital_ratio": summary["econ_capital_ratio"],
+        "total_exposure": summary["total_exposure"],
     }
 
 
-@app.get("/api/applications")
-async def list_applications(
-    status: str = None,
-    page: int = 1,
-    page_size: int = 20,
+# ============================================================================
+# Analytics Endpoints
+# ============================================================================
+
+@app.get("/api/analytics/concentration/{dimension}")
+async def get_concentration(dimension: str):
+    """
+    Get concentration analysis by dimension.
+    Dimensions: industry, region, risk_grade, collateral, purpose
+    """
+    service = get_portfolio_service()
+    return service.get_concentration_analysis(dimension)
+
+
+@app.get("/api/analytics/large-exposures")
+async def get_large_exposures(threshold: float = Query(default=5.0, ge=1.0, le=20.0)):
+    """Get large exposure report. Threshold is percentage of portfolio."""
+    service = get_portfolio_service()
+    return service.get_large_exposures(threshold)
+
+
+@app.get("/api/analytics/migration-matrix")
+async def get_migration_matrix(period: int = Query(default=12, ge=6, le=36)):
+    """Get risk migration matrix."""
+    service = get_portfolio_service()
+    return service.get_risk_migration_matrix(period)
+
+
+@app.get("/api/analytics/vintage")
+async def get_vintage_analysis():
+    """Get vintage analysis (default rates by origination cohort)."""
+    service = get_portfolio_service()
+    return service.get_vintage_analysis()
+
+
+# ============================================================================
+# Loan Endpoints
+# ============================================================================
+
+@app.get("/api/loans")
+async def list_loans(
+    status: Optional[str] = None,
+    risk_grade: Optional[str] = None,
+    industry: Optional[str] = None,
+    region: Optional[str] = None,
+    payment_status: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ):
-    """List all applications with optional filtering."""
-    apps = list(applications_db.values())
+    """List loans with optional filtering."""
+    service = get_portfolio_service()
+    return service.list_loans(
+        status=status,
+        risk_grade=risk_grade,
+        industry=industry,
+        region=region,
+        payment_status=payment_status,
+        limit=limit,
+        offset=offset,
+    )
 
-    if status:
-        apps = [a for a in apps if a["status"] == status]
 
-    # Pagination
-    start = (page - 1) * page_size
-    end = start + page_size
-    paginated = apps[start:end]
+@app.get("/api/loans/{loan_id}")
+async def get_loan(loan_id: str):
+    """Get individual loan details."""
+    service = get_portfolio_service()
+    loan = service.get_loan(loan_id)
+
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+
+    # Calculate individual capital for this loan
+    capital_service = get_capital_service()
+    capital = capital_service.calculate_capital_requirement(
+        pd=loan["pd_score"],
+        lgd=loan["lgd_score"],
+        ead=loan["outstanding_balance"],
+        maturity=loan["term_months"] / 12
+    )
 
     return {
-        "applications": paginated,
-        "total": len(apps),
-        "page": page,
-        "page_size": page_size,
+        **loan,
+        "regulatory_capital": capital["regulatory_capital"],
+        "expected_loss": capital["expected_loss"],
+        "risk_weighted_assets": capital["risk_weighted_assets"],
     }
 
 
-@app.get("/api/applications/{application_id}")
-async def get_application(application_id: str):
-    """Get application details."""
-    if application_id not in applications_db:
-        raise HTTPException(status_code=404, detail="Application not found")
+@app.get("/api/loans/{loan_id}/repayments")
+async def get_loan_repayments(loan_id: str):
+    """Get repayment history for a loan."""
+    service = get_portfolio_service()
 
-    return applications_db[application_id]
+    # Verify loan exists
+    loan = service.get_loan(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
 
-
-# ============================================================================
-# Workflow Endpoints
-# ============================================================================
-
-@app.post("/api/workflow/start")
-async def start_workflow(request: WorkflowStartRequest):
-    """Start workflow for an application."""
-    application_id = request.application_id
-
-    if application_id not in applications_db:
-        raise HTTPException(status_code=404, detail="Application not found")
-
-    app_data = applications_db[application_id]
-
-    # Create workflow
-    workflow_id = f"WF-{uuid.uuid4().hex[:8].upper()}"
-
-    try:
-        from agents.graph import run_workflow
-
-        # Run workflow
-        result = await run_workflow(
-            application_id=application_id,
-            workflow_id=workflow_id,
-            customer_data=app_data["customer"],
-            loan_request=app_data["loan"],
-            documents=app_data.get("documents", []),
-        )
-
-        # Store workflow state
-        workflows_db[workflow_id] = {
-            "workflow_id": workflow_id,
-            "application_id": application_id,
-            "status": WorkflowStatus.RUNNING,
-            "current_step": result.get("current_step", "unknown") if result else "unknown",
-            "state": result,
-            "started_at": datetime.now().isoformat(),
-        }
-
-        # Update application
-        app_data["workflow_id"] = workflow_id
-        app_data["status"] = ApplicationStatus.IN_PROGRESS
-
-        return {
-            "workflow_id": workflow_id,
-            "application_id": application_id,
-            "status": "running",
-            "current_step": workflows_db[workflow_id]["current_step"],
-            "message": "Workflow started successfully",
-        }
-
-    except Exception as e:
-        return {
-            "workflow_id": None,
-            "application_id": application_id,
-            "status": "error",
-            "error": str(e),
-        }
-
-
-@app.get("/api/workflow/{workflow_id}/status")
-async def get_workflow_status(workflow_id: str):
-    """Get current workflow status."""
-    if workflow_id not in workflows_db:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-
-    wf = workflows_db[workflow_id]
-    state = wf.get("state", {})
-
+    repayments = service.get_loan_repayments(loan_id)
     return {
-        "workflow_id": workflow_id,
-        "application_id": wf["application_id"],
-        "status": wf["status"],
-        "current_step": state.get("current_step", "unknown"),
-        "risk_scores": state.get("risk_scores", {}),
-        "final_decision": state.get("final_decision"),
+        "loan_id": loan_id,
+        "repayments": repayments,
+        "count": len(repayments),
     }
 
 
-@app.post("/api/workflow/{workflow_id}/resume")
-async def resume_workflow(workflow_id: str, decision: str, notes: str = None):
-    """Resume workflow after human review."""
-    if workflow_id not in workflows_db:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+class LoanCreate(BaseModel):
+    """Request model for adding a new loan."""
+    company_name: str
+    industry: str
+    region: str
+    country: str
+    loan_amount: float
+    interest_rate: float = 0.05
+    term_months: int = 36
+    purpose: str = "working_capital"
+    collateral_type: str = "unsecured"
+    collateral_value: float = 0
+    pd_score: float = 0.05
+    lgd_score: float = 0.45
+    risk_grade: str = "BBB"
+    annual_revenue: float = 0
+    net_income: float = 0
+    total_assets: float = 0
+    total_liabilities: float = 0
 
-    try:
-        from agents.graph import resume_workflow as resume_wf
 
-        result = await resume_wf(
-            workflow_id=workflow_id,
-            human_decision=decision,
-            analyst_notes=notes,
-        )
-
-        workflows_db[workflow_id]["state"] = result
-        workflows_db[workflow_id]["current_step"] = result.get("current_step", "unknown") if result else "unknown"
-
-        return {
-            "workflow_id": workflow_id,
-            "status": "resumed",
-            "current_step": workflows_db[workflow_id]["current_step"],
-        }
-
-    except Exception as e:
-        return {
-            "workflow_id": workflow_id,
-            "status": "error",
-            "error": str(e),
-        }
+@app.post("/api/loans")
+async def add_loan(loan: LoanCreate):
+    """Add a new loan to the portfolio."""
+    service = get_portfolio_service()
+    result = service.add_loan(loan.model_dump())
+    return result
 
 
 # ============================================================================
-# Analyst Endpoints
+# AI Assistant Endpoints
 # ============================================================================
 
 class ChatRequest(BaseModel):
-    application_id: str
+    """Chat request model."""
     message: str
+    include_portfolio_context: bool = True
 
 
-@app.post("/api/analyst/chat")
-async def analyst_chat(request: ChatRequest):
-    """AI analyst chat endpoint."""
-    # Import RAG service
+@app.post("/api/assistant/chat")
+async def assistant_chat(request: ChatRequest):
+    """AI assistant for portfolio questions."""
     try:
-        sys.path.insert(0, str(Path(__file__).parent.parent / "4_endpoints"))
-        from serve_rag import query
+        # Get portfolio context
+        service = get_portfolio_service()
+        summary = service.get_portfolio_summary()
 
-        # Get application context
-        app_data = applications_db.get(request.application_id, {})
+        # Build context for AI
+        portfolio_context = f"""
+Portfolio Summary:
+- Total Exposure: ${summary['total_exposure']:,.0f}
+- Loan Count: {summary['loan_count']}
+- Average PD: {summary['avg_pd']:.2f}%
+- Average LGD: {summary['avg_lgd']:.2f}%
+- Expected Loss: ${summary['expected_loss']:,.0f}
+- Regulatory Capital: ${summary['regulatory_capital']:,.0f}
+- Economic Capital (VaR 99.9%): ${summary['economic_capital']:,.0f}
+- Current Loans: {summary['current_count']}
+- Delinquent Loans: {summary['delinquent_count']}
+- Default Loans: {summary['default_count']}
+"""
 
-        result = query({
-            "question": request.message,
-            "customer_id": request.application_id,
-            "risk_context": app_data.get("risk_scores"),
-        })
+        # Try to use RAG service if available
+        try:
+            sys.path.insert(0, str(Path(__file__).parent.parent / "4_endpoints"))
+            from serve_rag import query
 
-        return {
-            "application_id": request.application_id,
-            "question": request.message,
-            "answer": result.get("answer", "Unable to generate response"),
-            "sources": result.get("sources", []),
-        }
+            result = query({
+                "question": request.message,
+                "risk_context": {
+                    "portfolio_summary": summary,
+                    "avg_pd": summary['avg_pd'],
+                    "total_exposure": summary['total_exposure'],
+                },
+            })
+
+            return {
+                "message": result.get("answer", "Unable to generate response"),
+                "sources": result.get("sources", []),
+                "portfolio_context": summary if request.include_portfolio_context else None,
+            }
+
+        except Exception as e:
+            # Fallback: return portfolio summary as response
+            return {
+                "message": f"Based on the current portfolio:\n{portfolio_context}\n\nFor your question: '{request.message}'\n\nPlease refer to the portfolio metrics above for insights.",
+                "sources": [],
+                "portfolio_context": summary if request.include_portfolio_context else None,
+            }
 
     except Exception as e:
         return {
-            "application_id": request.application_id,
-            "question": request.message,
-            "answer": f"Error: {str(e)}",
+            "message": f"Error processing request: {str(e)}",
             "sources": [],
+            "portfolio_context": None,
         }
 
 
 # ============================================================================
-# Decision Endpoints
+# Monitoring Endpoints
 # ============================================================================
 
-@app.get("/api/decisions/{application_id}")
-async def get_decision(application_id: str):
-    """Get final decision for an application."""
-    if application_id not in applications_db:
-        raise HTTPException(status_code=404, detail="Application not found")
+@app.get("/api/monitoring/metrics")
+async def get_monitoring_metrics():
+    """Get model and system metrics."""
+    import pickle
 
-    app_data = applications_db[application_id]
-    workflow_id = app_data.get("workflow_id")
+    base_path = Path(__file__).parent.parent / "data" / "models"
 
-    if not workflow_id or workflow_id not in workflows_db:
-        return {
-            "application_id": application_id,
-            "decision": None,
-            "message": "No decision yet",
-        }
+    # Load PD model metrics
+    pd_metrics = {"status": "unknown", "auc_roc": None, "gini": None, "ks_statistic": None}
+    try:
+        pd_path = base_path / "pd" / "pd_model_latest.pkl"
+        if pd_path.exists():
+            with open(pd_path, 'rb') as f:
+                pd_data = pickle.load(f)
+                if isinstance(pd_data, dict) and "metrics" in pd_data:
+                    pd_metrics = {
+                        "status": "healthy",
+                        "version": pd_data.get("version", "1.0"),
+                        "model_type": pd_data.get("model_type", "unknown"),
+                        "trained_at": str(pd_data.get("trained_at", "")),
+                        **pd_data["metrics"]
+                    }
+    except Exception as e:
+        pd_metrics["error"] = str(e)
 
-    state = workflows_db[workflow_id].get("state", {})
+    # Load LGD model metrics
+    lgd_metrics = {"status": "unknown", "mse": None, "r2": None}
+    try:
+        lgd_path = base_path / "lgd" / "lgd_model_latest.pkl"
+        if lgd_path.exists():
+            with open(lgd_path, 'rb') as f:
+                lgd_data = pickle.load(f)
+                if isinstance(lgd_data, dict) and "metrics" in lgd_data:
+                    lgd_metrics = {
+                        "status": "healthy",
+                        "version": lgd_data.get("version", "1.0"),
+                        "model_type": lgd_data.get("model_type", "unknown"),
+                        "trained_at": str(lgd_data.get("trained_at", "")),
+                        **lgd_data["metrics"]
+                    }
+    except Exception as e:
+        lgd_metrics["error"] = str(e)
+
+    # System metrics
+    uptime_seconds = (datetime.now() - api_metrics["start_time"]).total_seconds()
+    avg_latency = sum(api_metrics["latencies"]) / len(api_metrics["latencies"]) if api_metrics["latencies"] else 0
+    error_rate = (api_metrics["errors"] / api_metrics["requests"] * 100) if api_metrics["requests"] > 0 else 0
+
+    # Get portfolio stats
+    service = get_portfolio_service()
+    summary = service.get_portfolio_summary()
 
     return {
-        "application_id": application_id,
-        "decision": state.get("final_decision"),
-        "decision_reason": state.get("decision_reason"),
-        "conditions": state.get("decision_conditions", []),
-        "risk_grade": state.get("risk_grade"),
-        "pd_score": state.get("pd_score"),
-        "lgd_score": state.get("lgd_score"),
+        "pd_model": pd_metrics,
+        "lgd_model": lgd_metrics,
+        "system": {
+            "uptime_seconds": uptime_seconds,
+            "total_requests": api_metrics["requests"],
+            "total_errors": api_metrics["errors"],
+            "error_rate_percent": round(error_rate, 2),
+            "avg_latency_ms": round(avg_latency, 2),
+            "loans_count": summary["loan_count"],
+            "total_exposure": summary["total_exposure"],
+        }
     }
-
-
-# ============================================================================
-# WebSocket for Real-time Updates
-# ============================================================================
-
-@app.websocket("/ws/workflow/{application_id}")
-async def workflow_websocket(websocket: WebSocket, application_id: str):
-    """WebSocket for real-time workflow updates."""
-    await websocket.accept()
-    websocket_connections[application_id] = websocket
-
-    try:
-        while True:
-            data = await websocket.receive_text()
-            # Handle incoming messages if needed
-            await websocket.send_json({
-                "type": "ack",
-                "message": f"Received: {data}",
-            })
-    except WebSocketDisconnect:
-        if application_id in websocket_connections:
-            del websocket_connections[application_id]
 
 
 # ============================================================================

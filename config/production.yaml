@@ -1,0 +1,112 @@
+# Production Configuration (Cloudera ML)
+# Use with: APP_ENV=production
+
+environment: production
+
+# API Server
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  reload: false
+
+# Database
+database:
+  # Use environment variable for production database
+  url: "${DATABASE_URL:-sqlite:////home/cdsw/data/credit_risk.db}"
+  echo: false
+
+# Redis (enabled for production)
+redis:
+  url: "${REDIS_URL:-redis://localhost:6379}"
+  enabled: true
+
+# Model Configuration
+models:
+  use_local: false  # Use CML model endpoints
+  paths:
+    # CML paths as fallback
+    pd: "/home/cdsw/data/models/pd/pd_model_latest.pkl"
+    lgd: "/home/cdsw/data/models/lgd/lgd_model_latest.pkl"
+  # CML Model Endpoints (set via environment variables)
+  endpoints:
+    pd: "${PD_MODEL_ENDPOINT}"
+    lgd: "${LGD_MODEL_ENDPOINT}"
+    document: "${DOCUMENT_ENDPOINT}"
+    rag: "${RAG_ENDPOINT}"
+
+# MLflow (Production - Cloudera ML)
+mlflow:
+  # Tracking URI - supports both Cloudera MLflow Server and local filesystem
+  # Examples:
+  #   - Cloudera MLflow Server: https://workspace.ml.cloudera.site/mlflow
+  #   - CML Filesystem: /home/cdsw/mlruns
+  tracking_uri: "${MLFLOW_TRACKING_URI:-/home/cdsw/mlruns}"
+  experiment_name: "${MLFLOW_EXPERIMENT_NAME:-credit_risk_production}"
+  registry_uri: "${MLFLOW_REGISTRY_URI}"  # Optional separate registry
+  # Authentication (for Cloudera MLflow Server)
+  tracking_username: "${MLFLOW_TRACKING_USERNAME}"
+  tracking_password: "${MLFLOW_TRACKING_PASSWORD}"
+  tracking_token: "${MLFLOW_TRACKING_TOKEN}"
+
+# ChromaDB
+chromadb:
+  persist_directory: "${CHROMA_PERSIST_DIRECTORY:-/home/cdsw/data/chroma_db}"
+  collection_name: "policy_documents"
+
+# Decision Thresholds
+thresholds:
+  pd_auto_approve: 0.03
+  pd_refer: 0.10
+  pd_auto_decline: 0.15
+  min_rorac: 0.12
+
+# Workflow
+workflow:
+  timeout_seconds: 600
+  max_retries: 5
+
+# CORS (Cloudera domains)
+cors:
+  origins:
+    - "https://*.cloudera.site"
+    - "https://*.cdsw.internal"
+  allow_credentials: true
+  allow_methods: ["GET", "POST", "PUT", "DELETE"]
+  allow_headers: ["*"]
+
+# Security (strict for production)
+security:
+  ssl_enabled: true
+  rate_limiting_enabled: true
+  rate_limit_requests: 100
+  rate_limit_period_seconds: 60
+  api_key_required: true
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "/home/cdsw/logs/app.log"
+
+# Feature Flags
+features:
+  enable_monitoring: true
+  enable_retraining: true
+  enable_document_processing: true
+  enable_rag: true
+
+# CML Specific Settings
+cml:
+  project_owner: "${CDSW_PROJECT_OWNER}"
+  project_name: "credit-risk-platform"
+  domain: "${CML_DOMAIN}"
+  # Resource allocation
+  resources:
+    cpu: 2
+    memory_gb: 4
+  # Auto-scaling
+  autoscaling:
+    enabled: true
+    min_replicas: 1
+    max_replicas: 5

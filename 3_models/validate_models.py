@@ -123,7 +123,8 @@ def binomial_test_by_decile(y_true: np.ndarray, y_pred: np.ndarray) -> pd.DataFr
 
         # Binomial test
         if n > 0:
-            p_value = stats.binom_test(observed, n, expected_rate, alternative='two-sided')
+            result = stats.binomtest(observed, n, expected_rate, alternative='two-sided')
+            p_value = result.pvalue
         else:
             p_value = 1.0
 

@@ -1,0 +1,131 @@
+# CML Model Deployment Configuration
+# Use this file as reference for deploying PD and LGD models to Cloudera ML
+
+# =============================================================================
+# PD Model Deployment
+# =============================================================================
+pd_model:
+  name: "pd-model"
+  description: "Probability of Default Model for Credit Risk Assessment"
+
+  # Entry point configuration
+  script: "cml_serve_pd.py"
+  function: "predict"
+
+  # Resource requirements
+  cpu: 1
+  memory: 2  # GB
+
+  # Replicas for load balancing
+  replicas: 2
+
+  # Environment variables
+  environment:
+    MODEL_VERSION: "1.0"
+    LOG_LEVEL: "INFO"
+
+  # Example API request
+  example_request:
+    debt_to_equity: 1.5
+    current_ratio: 1.8
+    interest_coverage_ratio: 4.5
+    credit_score_normalized: 0.75
+    utilization_rate: 0.4
+    industry_risk_tier: 3
+    loan_to_revenue_ratio: 0.15
+
+  # Expected response schema
+  response_schema:
+    status: "success"
+    pd_score: 0.045
+    risk_grade: "BB"
+    decision: "REFER"
+    confidence: "MEDIUM"
+    model_version: "2026-01-05T02:40:28"
+
+# =============================================================================
+# LGD Model Deployment
+# =============================================================================
+lgd_model:
+  name: "lgd-model"
+  description: "Loss Given Default Model for Credit Risk Assessment"
+
+  # Entry point configuration
+  script: "cml_serve_lgd.py"
+  function: "predict"
+
+  # Resource requirements
+  cpu: 1
+  memory: 2  # GB
+
+  # Replicas for load balancing
+  replicas: 2
+
+  # Environment variables
+  environment:
+    MODEL_VERSION: "1.0"
+    LOG_LEVEL: "INFO"
+
+  # Example API request
+  example_request:
+    collateral_type: "equipment"
+    ltv_ratio: 0.7
+    loan_amount: 1000000
+    debt_to_equity: 1.5
+    current_ratio: 1.8
+    credit_score_normalized: 0.75
+
+  # Expected response schema
+  response_schema:
+    status: "success"
+    lgd_score: 0.45
+    lgd_source: "model"
+    recovery_rate: 0.55
+    expected_loss_amount: 450000
+
+# =============================================================================
+# Deployment Instructions
+# =============================================================================
+#
+# 1. Log into CML Workspace
+#    - Navigate to your project
+#    - Go to Models section
+#
+# 2. Create New Model (PD)
+#    - Name: pd-model
+#    - Description: Probability of Default Model
+#    - File: 4_endpoints/cml_serve_pd.py
+#    - Function: predict
+#    - Kernel: Python 3
+#    - Enable Authentication: Yes
+#    - Resources: 1 vCPU, 2 GB Memory
+#
+# 3. Create New Model (LGD)
+#    - Name: lgd-model
+#    - Description: Loss Given Default Model
+#    - File: 4_endpoints/cml_serve_lgd.py
+#    - Function: predict
+#    - Kernel: Python 3
+#    - Enable Authentication: Yes
+#    - Resources: 1 vCPU, 2 GB Memory
+#
+# 4. Deploy Models
+#    - Click Deploy for each model
+#    - Wait for deployment to complete
+#    - Note the endpoint URLs
+#
+# 5. Configure Backend
+#    - Set environment variables:
+#      CML_DEPLOYMENT_MODE=cml
+#      CML_API_URL=<your-cml-workspace-url>
+#      CML_API_KEY=<your-api-key>
+#      CML_PD_MODEL_ENDPOINT=<pd-model-endpoint>
+#      CML_LGD_MODEL_ENDPOINT=<lgd-model-endpoint>
+#
+# 6. Test Endpoints
+#    curl -X POST <endpoint-url> \
+#      -H "Authorization: Bearer <api-key>" \
+#      -H "Content-Type: application/json" \
+#      -d '{"request": {"debt_to_equity": 1.5, ...}}'
+#
+# =============================================================================

@@ -2,6 +2,20 @@
 """
 MLflow Model Registry Script
 Registers trained models in MLflow Model Registry.
+
+Environment-aware configuration:
+- Local mode (APP_ENV=local): Uses local ./mlruns directory
+- Production mode (APP_ENV=production): Uses Cloudera MLflow server
+
+Usage:
+    # Local development
+    python register_models.py
+
+    # Production (with Cloudera MLflow)
+    APP_ENV=production python register_models.py
+
+    # Promote model to production
+    python register_models.py --promote pd
 """
 
 import os
@@ -17,6 +31,19 @@ try:
 except ImportError:
     MLFLOW_AVAILABLE = False
 
+# Add parent directory to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+try:
+    from dotenv import load_dotenv
+    # Load .env file if it exists (for local development)
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+
 
 def load_model(model_type: str) -> dict:
     """Load trained model artifact."""
@@ -30,13 +57,97 @@ def load_model(model_type: str) -> dict:
         return pickle.load(f)
 
 
-def setup_mlflow():
-    """Setup MLflow tracking."""
-    project_root = Path(__file__).parent.parent
-    tracking_uri = str(project_root / "mlruns")
+def get_environment() -> str:
+    """Get current environment from APP_ENV or detect from context."""
+    env = os.environ.get("APP_ENV", "local").lower()
 
-    mlflow.set_tracking_uri(tracking_uri)
-    return MlflowClient(tracking_uri)
+    # Auto-detect Cloudera ML environment
+    if any(var in os.environ for var in ["CDSW_PROJECT_URL", "CML_DOMAIN", "HADOOP_CONF_DIR"]):
+        if env == "local":
+            print("[INFO] Detected Cloudera ML environment, but APP_ENV=local")
+            print("       Set APP_ENV=production to use Cloudera MLflow server")
+
+    return env
+
+
+def setup_mlflow():
+    """
+    Setup MLflow tracking with environment-aware configuration.
+
+    Local mode: Uses local ./mlruns directory
+    Production mode: Uses configuration from backend settings (Cloudera MLflow or CML filesystem)
+    """
+    env = get_environment()
+
+    print(f"\n[INFO] Environment: {env}")
+
+    # Try to load backend config first (has all the environment-aware logic)
+    try:
+        # Import from 5_backend directory
+        import importlib.util
+        backend_config_path = Path(__file__).parent.parent / "5_backend" / "config.py"
+        spec = importlib.util.spec_from_file_location("backend_config", backend_config_path)
+        backend_config = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(backend_config)
+        settings = backend_config.settings
+        mlflow_config = settings.configure_mlflow()
+
+        print(f"[INFO] MLflow Configuration:")
+        print(f"  - Status: {mlflow_config.get('status')}")
+        print(f"  - Tracking URI: {mlflow_config.get('tracking_uri')}")
+        print(f"  - Experiment: {mlflow_config.get('experiment_name', 'default')}")
+        if mlflow_config.get("auth_method"):
+            print(f"  - Authentication: {mlflow_config['auth_method']}")
+
+        tracking_uri = mlflow_config.get("tracking_uri")
+        if not tracking_uri:
+            raise ValueError("MLflow tracking URI not configured")
+
+        return MlflowClient(tracking_uri)
+
+    except Exception as e:
+        print(f"[WARN] Could not load backend config: {e}")
+        print("[INFO] Falling back to environment variables and defaults")
+
+        # Fallback: Use environment variables directly
+        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI")
+
+        if not tracking_uri:
+            # Default based on environment
+            project_root = Path(__file__).parent.parent
+            if env == "production":
+                # Production default: CML filesystem path
+                tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "/home/cdsw/mlruns")
+                print(f"[INFO] Using production default: {tracking_uri}")
+            else:
+                # Local default
+                tracking_uri = str(project_root / "mlruns")
+                print(f"[INFO] Using local default: {tracking_uri}")
+        else:
+            print(f"[INFO] Using MLFLOW_TRACKING_URI from environment: {tracking_uri}")
+
+        # Set up MLflow
+        mlflow.set_tracking_uri(tracking_uri)
+
+        # Handle authentication for remote servers
+        if tracking_uri.startswith("http"):
+            print("[INFO] Remote MLflow server detected")
+            username = os.environ.get("MLFLOW_TRACKING_USERNAME")
+            password = os.environ.get("MLFLOW_TRACKING_PASSWORD")
+            token = os.environ.get("MLFLOW_TRACKING_TOKEN")
+
+            if username and password:
+                print("[INFO] Using basic authentication")
+                os.environ["MLFLOW_TRACKING_USERNAME"] = username
+                os.environ["MLFLOW_TRACKING_PASSWORD"] = password
+            elif token:
+                print("[INFO] Using token authentication")
+                os.environ["MLFLOW_TRACKING_TOKEN"] = token
+            else:
+                print("[WARN] No authentication credentials found")
+                print("       Set MLFLOW_TRACKING_USERNAME/PASSWORD or MLFLOW_TRACKING_TOKEN")
+
+        return MlflowClient(tracking_uri)
 
 
 def register_pd_model(client: MlflowClient):
@@ -204,9 +315,17 @@ def promote_to_production(client: MlflowClient, model_name: str, version: int = 
 
 def main():
     """Main function to register models."""
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
     print("Credit Risk Platform - Model Registration")
-    print("=" * 60)
+    print("=" * 70)
+
+    # Show environment info
+    env = get_environment()
+    print(f"\nEnvironment: {env.upper()}")
+
+    if not DOTENV_AVAILABLE and env == "local":
+        print("[WARN] python-dotenv not installed - .env file will not be loaded")
+        print("       Run: pip install python-dotenv")
 
     if not MLFLOW_AVAILABLE:
         print("\n[ERROR] MLflow not installed. Run: pip install mlflow")
