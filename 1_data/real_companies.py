@@ -157,16 +157,17 @@ COMPANIES = [
     },
 ]
 
-# Industry risk parameters
+# Industry risk parameters for large-cap investment-grade companies
+# These are realistic PDs for major blue-chip corporations (S&P-like)
 INDUSTRY_PARAMS = {
-    "technology": {"base_pd": 0.025, "base_lgd": 0.40, "risk_tier": 2},
-    "healthcare": {"base_pd": 0.020, "base_lgd": 0.35, "risk_tier": 1},
-    "financial_services": {"base_pd": 0.030, "base_lgd": 0.45, "risk_tier": 2},
-    "energy": {"base_pd": 0.045, "base_lgd": 0.50, "risk_tier": 4},
-    "retail": {"base_pd": 0.050, "base_lgd": 0.55, "risk_tier": 4},
-    "manufacturing": {"base_pd": 0.035, "base_lgd": 0.45, "risk_tier": 3},
-    "transportation": {"base_pd": 0.040, "base_lgd": 0.50, "risk_tier": 3},
-    "construction": {"base_pd": 0.055, "base_lgd": 0.55, "risk_tier": 5},
+    "technology": {"base_pd": 0.0005, "base_lgd": 0.35, "risk_tier": 1},     # AAPL, MSFT - AAA/AA tier
+    "healthcare": {"base_pd": 0.0008, "base_lgd": 0.35, "risk_tier": 1},     # JNJ, PFE - AA/A tier
+    "financial_services": {"base_pd": 0.002, "base_lgd": 0.45, "risk_tier": 2},  # JPM, GS - A/BBB tier
+    "energy": {"base_pd": 0.006, "base_lgd": 0.50, "risk_tier": 3},          # XOM, CVX - BBB tier
+    "retail": {"base_pd": 0.005, "base_lgd": 0.45, "risk_tier": 3},          # WMT, AMZN - BBB tier
+    "manufacturing": {"base_pd": 0.008, "base_lgd": 0.45, "risk_tier": 3},   # GE, BA - BBB/BB tier
+    "transportation": {"base_pd": 0.012, "base_lgd": 0.50, "risk_tier": 4},  # DAL, UNP - BB tier
+    "construction": {"base_pd": 0.015, "base_lgd": 0.55, "risk_tier": 4},    # CAT, DE - BB tier
 }
 
 

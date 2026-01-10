@@ -24,13 +24,23 @@ END_DATE = datetime(2024, 12, 31)
 
 
 def pd_to_grade(pd: float) -> str:
-    """Convert PD to risk grade."""
-    if pd < 0.005: return "AAA"
-    elif pd < 0.01: return "AA"
-    elif pd < 0.02: return "A"
-    elif pd < 0.04: return "BBB"
-    elif pd < 0.08: return "BB"
-    elif pd < 0.15: return "B"
+    """Convert PD to risk grade (S&P-like scale).
+
+    Typical 1-year PD ranges:
+    - AAA: 0.01% - 0.03%
+    - AA:  0.03% - 0.10%
+    - A:   0.10% - 0.30%
+    - BBB: 0.30% - 1.00%
+    - BB:  1.00% - 3.00%
+    - B:   3.00% - 10.00%
+    - CCC: 10.00%+
+    """
+    if pd < 0.0003: return "AAA"
+    elif pd < 0.001: return "AA"
+    elif pd < 0.003: return "A"
+    elif pd < 0.01: return "BBB"
+    elif pd < 0.03: return "BB"
+    elif pd < 0.10: return "B"
     else: return "CCC"
 
 
@@ -182,8 +192,9 @@ def generate_loans(conn: sqlite3.Connection):
             status = "active"
 
         # PD/LGD based on industry with some variation
-        pd_score = params["base_pd"] * random.uniform(0.7, 1.5)
-        pd_score = max(0.005, min(0.15, pd_score))
+        # Use tighter variation for more realistic distribution
+        pd_score = params["base_pd"] * random.uniform(0.6, 1.4)
+        pd_score = max(0.0001, min(0.15, pd_score))  # Allow very low PDs for AAA/AA
 
         lgd_score = params["base_lgd"] * random.uniform(0.8, 1.2)
         lgd_score = max(0.25, min(0.65, lgd_score))
