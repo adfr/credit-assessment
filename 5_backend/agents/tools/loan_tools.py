@@ -213,6 +213,157 @@ def score_loan_pd(
     }
 
 
+def list_loans(
+    industry: str = None,
+    risk_grade: str = None,
+    payment_status: str = None,
+    min_exposure: float = None,
+    max_exposure: float = None,
+    min_pd: float = None,
+    max_pd: float = None,
+    sort_by: str = "outstanding_balance",
+    sort_order: str = "desc",
+    limit: int = 20
+) -> dict[str, Any]:
+    """
+    List loans with optional filtering and sorting.
+
+    Args:
+        industry: Filter by industry (e.g., 'technology', 'healthcare')
+        risk_grade: Filter by risk grade (e.g., 'A', 'B', 'C')
+        payment_status: Filter by payment status (e.g., 'current', 'delinquent')
+        min_exposure: Minimum outstanding balance
+        max_exposure: Maximum outstanding balance
+        min_pd: Minimum PD score
+        max_pd: Maximum PD score
+        sort_by: Field to sort by (outstanding_balance, pd_score, company_name)
+        sort_order: Sort order ('asc' or 'desc')
+        limit: Max number of loans to return (default 20, max 100)
+
+    Returns:
+        dict with loans list and summary statistics
+    """
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    try:
+        # Build query
+        query = "SELECT * FROM loans WHERE 1=1"
+        params = []
+
+        if industry:
+            query += " AND industry = ?"
+            params.append(industry)
+
+        if risk_grade:
+            query += " AND risk_grade = ?"
+            params.append(risk_grade)
+
+        if payment_status:
+            query += " AND payment_status = ?"
+            params.append(payment_status)
+
+        if min_exposure is not None:
+            query += " AND outstanding_balance >= ?"
+            params.append(min_exposure)
+
+        if max_exposure is not None:
+            query += " AND outstanding_balance <= ?"
+            params.append(max_exposure)
+
+        if min_pd is not None:
+            query += " AND pd_score >= ?"
+            params.append(min_pd)
+
+        if max_pd is not None:
+            query += " AND pd_score <= ?"
+            params.append(max_pd)
+
+        # Validate sort field
+        valid_sort_fields = ["outstanding_balance", "pd_score", "lgd_score", "company_name", "risk_grade", "industry"]
+        if sort_by not in valid_sort_fields:
+            sort_by = "outstanding_balance"
+
+        sort_order = "DESC" if sort_order.lower() == "desc" else "ASC"
+        query += f" ORDER BY {sort_by} {sort_order}"
+
+        # Limit
+        limit = min(limit, 100)
+        query += f" LIMIT {limit}"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        loans = []
+        for row in rows:
+            loan = dict(row)
+            # Calculate expected loss for each loan
+            pd = loan.get("pd_score", 0.05)
+            lgd = loan.get("lgd_score", 0.45)
+            exposure = loan.get("outstanding_balance", 0)
+            loan["expected_loss"] = exposure * pd * lgd
+            loans.append(loan)
+
+        # Calculate summary statistics
+        if loans:
+            total_exposure = sum(l.get("outstanding_balance", 0) for l in loans)
+            total_el = sum(l.get("expected_loss", 0) for l in loans)
+            avg_pd = sum(l.get("pd_score", 0) for l in loans) / len(loans)
+            avg_lgd = sum(l.get("lgd_score", 0) for l in loans) / len(loans)
+        else:
+            total_exposure = total_el = avg_pd = avg_lgd = 0
+
+        return {
+            "loans": loans,
+            "count": len(loans),
+            "filters_applied": {
+                "industry": industry,
+                "risk_grade": risk_grade,
+                "payment_status": payment_status,
+                "min_exposure": min_exposure,
+                "max_exposure": max_exposure,
+                "min_pd": min_pd,
+                "max_pd": max_pd,
+            },
+            "summary": {
+                "total_exposure": total_exposure,
+                "total_expected_loss": total_el,
+                "avg_pd": avg_pd,
+                "avg_lgd": avg_lgd,
+            }
+        }
+    finally:
+        conn.close()
+
+
+def get_top_exposures(limit: int = 10) -> dict[str, Any]:
+    """
+    Get the top largest exposures in the portfolio.
+
+    Args:
+        limit: Number of top exposures to return (default 10)
+
+    Returns:
+        dict with top exposures and risk metrics
+    """
+    return list_loans(sort_by="outstanding_balance", sort_order="desc", limit=limit)
+
+
+def get_high_risk_loans(pd_threshold: float = 0.10, limit: int = 20) -> dict[str, Any]:
+    """
+    Get loans with PD above a threshold.
+
+    Args:
+        pd_threshold: PD threshold (default 0.10 = 10%)
+        limit: Max number of loans to return
+
+    Returns:
+        dict with high-risk loans
+    """
+    return list_loans(min_pd=pd_threshold, sort_by="pd_score", sort_order="desc", limit=limit)
+
+
 def score_loan_lgd(
     collateral_type: str,
     collateral_value: float,

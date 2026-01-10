@@ -26,6 +26,7 @@ from .tools.portfolio_tools import (
 )
 from .tools.rag_tools import query_policies, query_company_documents
 from .tools.news_tools import search_company_news, search_industry_news, search_credit_news
+from .tools.loan_tools import get_loan_details, get_loan_risk_metrics, list_loans
 
 
 # Initialize Anthropic client
@@ -265,6 +266,89 @@ TOOLS = [
                 }
             },
             "required": ["loan_amount", "industry"]
+        }
+    },
+    {
+        "name": "list_loans",
+        "description": "List individual loans in the portfolio with optional filtering. Use this to answer questions about specific loans, find loans by criteria, or get loan-level details. Returns loan ID, company name, industry, exposure, PD, LGD, risk grade, and expected loss for each loan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "industry": {
+                    "type": "string",
+                    "description": "Filter by industry sector",
+                    "enum": ["healthcare", "energy", "transportation", "manufacturing", "financial_services", "retail", "construction", "technology"]
+                },
+                "risk_grade": {
+                    "type": "string",
+                    "description": "Filter by risk grade (A, B, C, D, E)",
+                    "enum": ["A", "B", "C", "D", "E"]
+                },
+                "payment_status": {
+                    "type": "string",
+                    "description": "Filter by payment status",
+                    "enum": ["current", "delinquent", "default"]
+                },
+                "min_exposure": {
+                    "type": "number",
+                    "description": "Minimum outstanding balance filter"
+                },
+                "max_exposure": {
+                    "type": "number",
+                    "description": "Maximum outstanding balance filter"
+                },
+                "min_pd": {
+                    "type": "number",
+                    "description": "Minimum PD score filter (e.g., 0.05 for 5%)"
+                },
+                "max_pd": {
+                    "type": "number",
+                    "description": "Maximum PD score filter"
+                },
+                "sort_by": {
+                    "type": "string",
+                    "description": "Field to sort by",
+                    "enum": ["outstanding_balance", "pd_score", "lgd_score", "company_name", "risk_grade"]
+                },
+                "sort_order": {
+                    "type": "string",
+                    "description": "Sort order",
+                    "enum": ["asc", "desc"]
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of loans to return (default 20, max 100)"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "get_loan_details",
+        "description": "Get detailed information about a specific loan by its ID. Returns full loan details including company info, exposure, PD/LGD scores, risk grade, expected loss, regulatory capital, and payment history.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "loan_id": {
+                    "type": "string",
+                    "description": "The loan ID (e.g., 'LOAN-001')"
+                }
+            },
+            "required": ["loan_id"]
+        }
+    },
+    {
+        "name": "get_loan_risk_metrics",
+        "description": "Get comprehensive risk metrics for a specific loan including expected loss, regulatory capital, economic capital, VaR, and RORAC.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "loan_id": {
+                    "type": "string",
+                    "description": "The loan ID (e.g., 'LOAN-001')"
+                }
+            },
+            "required": ["loan_id"]
         }
     }
 ]
@@ -555,6 +639,28 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
             }
         }
 
+    elif tool_name == "list_loans":
+        return list_loans(
+            industry=tool_input.get("industry"),
+            risk_grade=tool_input.get("risk_grade"),
+            payment_status=tool_input.get("payment_status"),
+            min_exposure=tool_input.get("min_exposure"),
+            max_exposure=tool_input.get("max_exposure"),
+            min_pd=tool_input.get("min_pd"),
+            max_pd=tool_input.get("max_pd"),
+            sort_by=tool_input.get("sort_by", "outstanding_balance"),
+            sort_order=tool_input.get("sort_order", "desc"),
+            limit=tool_input.get("limit", 20)
+        )
+
+    elif tool_name == "get_loan_details":
+        loan_id = tool_input.get("loan_id", "")
+        return get_loan_details(loan_id)
+
+    elif tool_name == "get_loan_risk_metrics":
+        loan_id = tool_input.get("loan_id", "")
+        return get_loan_risk_metrics(loan_id)
+
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -562,27 +668,43 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
 SYSTEM_PROMPT = """You are a Credit Risk Analyst AI assistant. You help users analyze credit portfolio risk, run stress tests, search for news, and answer questions about credit policies.
 
 You have access to these tools:
-1. get_portfolio_summary - Get current portfolio metrics
+
+**Portfolio-Level Tools:**
+1. get_portfolio_summary - Get current portfolio metrics (total exposure, loan count, avg PD/LGD, VaR, capital)
 2. run_stress_scenario - Run stress tests on specific industries with PD/LGD shocks and correlation adjustments
 3. analyze_correlation_sensitivity - Analyze how VaR changes across different asset correlation assumptions (Vasicek model)
-4. get_concentration_analysis - Analyze portfolio concentration
-5. query_credit_policies - Search policy documents
-6. calculate_capital_impact - Calculate capital for given parameters
-7. search_company_news - Search for recent news about a specific company (earnings, lawsuits, bankruptcy, etc.)
-8. search_industry_news - Search for news about an industry sector (credit trends, defaults, market conditions)
-9. search_credit_news - Search for general credit market news (spreads, downgrades, default rates)
-10. simulate_loan_addition - Simulate impact of adding a new loan to the portfolio (marginal VaR, capital, diversification benefit)
-11. search_company_filings - Search company 10-K filings for risk factors, financial info, business strategy
+4. get_concentration_analysis - Analyze portfolio concentration by industry, region, or risk grade
+5. simulate_loan_addition - Simulate impact of adding a new loan to the portfolio
 
-When users ask about stress testing or "what if" scenarios, use the run_stress_scenario tool.
-When users ask about a company's risk factors, financials, or SEC filings, use search_company_filings.
-When users ask "what if we add a loan" or "what happens if we add $X to industry Y", use simulate_loan_addition.
-When users ask about correlation sensitivity or how correlation affects tail risk, use analyze_correlation_sensitivity.
-When users ask about news, recent events, or want to monitor a company or industry, use the news search tools.
-The run_stress_scenario tool supports a 'correlation' parameter (default 0.15) to modify asset correlation in the Vasicek VaR model.
-When interpreting results, provide clear analysis of the business implications.
+**Loan-Level Tools:**
+6. list_loans - List individual loans with filtering (by industry, risk grade, payment status, exposure, PD). Use this to find specific loans, get top exposures, high-risk loans, or answer questions about individual borrowers.
+7. get_loan_details - Get full details for a specific loan by ID (company name, exposure, PD, LGD, risk grade, capital)
+8. get_loan_risk_metrics - Get comprehensive risk metrics for a loan (EL, VaR, regulatory capital, RORAC)
+
+**Research Tools:**
+9. query_credit_policies - Search credit policy documents
+10. search_company_filings - Search company 10-K filings for risk factors, financial info, business strategy
+11. search_company_news - Search for recent news about a specific company
+12. search_industry_news - Search for news about an industry sector
+13. search_credit_news - Search for general credit market news
+14. calculate_capital_impact - Calculate capital for given risk parameters
+
+**When to use loan-level tools:**
+- "Show me our largest loans" → list_loans with sort_by=outstanding_balance
+- "Which loans have PD above 10%?" → list_loans with min_pd=0.10
+- "Show me technology sector loans" → list_loans with industry=technology
+- "What are the details for loan LOAN-001?" → get_loan_details
+- "Which companies are highest risk?" → list_loans sorted by pd_score
+- "Show delinquent loans" → list_loans with payment_status=delinquent
+
+**When to use portfolio tools:**
+- "What's our total exposure?" → get_portfolio_summary
+- "What if energy PD increases 2%?" → run_stress_scenario
+- "Show concentration by industry" → get_concentration_analysis
 
 Available industries: healthcare, energy, transportation, manufacturing, financial_services, retail, construction, technology.
+Risk grades: A (lowest risk), B, C, D, E (highest risk)
+Payment statuses: current, delinquent, default
 
 Asset correlation in the Vasicek model:
 - Higher correlation means defaults are more likely to happen together (systemic risk)
