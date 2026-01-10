@@ -17,9 +17,16 @@ from pydantic import BaseModel
 # Add paths
 sys.path.insert(0, str(Path(__file__).parent))
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 from config import settings
 from services.portfolio_service import get_portfolio_service
 from services.capital_service import get_capital_service
+from services.scoring_service import get_scoring_service
+from services.model_registry_service import get_model_registry, ModelType
+from agents.llm_agent import run_llm_agent
+from api.models import router as models_router
 
 
 # Lifespan context manager
@@ -43,11 +50,14 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(models_router)
 
 
 # Track API metrics
@@ -246,9 +256,11 @@ class LoanCreate(BaseModel):
     purpose: str = "working_capital"
     collateral_type: str = "unsecured"
     collateral_value: float = 0
-    pd_score: float = 0.05
-    lgd_score: float = 0.45
-    risk_grade: str = "BBB"
+    # Risk scores - optional, will be predicted by models if not provided
+    pd_score: Optional[float] = None
+    lgd_score: Optional[float] = None
+    risk_grade: Optional[str] = None
+    # Company financials for model prediction
     annual_revenue: float = 0
     net_income: float = 0
     total_assets: float = 0
@@ -257,9 +269,45 @@ class LoanCreate(BaseModel):
 
 @app.post("/api/loans")
 async def add_loan(loan: LoanCreate):
-    """Add a new loan to the portfolio."""
+    """Add a new loan to the portfolio with model-predicted PD/LGD."""
+    loan_data = loan.model_dump()
+
+    # If PD/LGD not provided, predict using scoring models
+    if loan_data.get("pd_score") is None or loan_data.get("lgd_score") is None:
+        scoring_service = get_scoring_service()
+
+        # Prepare customer and loan data for scoring
+        customer_data = {
+            "annual_revenue": loan_data.get("annual_revenue", 1000000),
+            "net_income": loan_data.get("net_income", 100000),
+            "total_assets": loan_data.get("total_assets", 5000000),
+            "total_liabilities": loan_data.get("total_liabilities", 2000000),
+        }
+        loan_request = {
+            "requested_amount": loan_data["loan_amount"],
+            "proposed_interest_rate": loan_data.get("interest_rate", 0.05),
+            "term_months": loan_data.get("term_months", 36),
+            "collateral_type": loan_data.get("collateral_type", "unsecured"),
+            "ltv_ratio": (
+                loan_data["loan_amount"] / loan_data.get("collateral_value", loan_data["loan_amount"])
+                if loan_data.get("collateral_value", 0) > 0
+                else 1.0
+            ),
+        }
+
+        # Get model predictions
+        scoring_result = scoring_service.score_application(customer_data, loan_request)
+
+        # Use model predictions
+        loan_data["pd_score"] = scoring_result["pd_score"]
+        loan_data["lgd_score"] = scoring_result["lgd_score"]
+        loan_data["risk_grade"] = scoring_result["risk_grade"]
+
     service = get_portfolio_service()
-    result = service.add_loan(loan.model_dump())
+    result = service.add_loan(loan_data)
+
+    # Include scoring info in response
+    result["scoring_source"] = "model" if loan.pd_score is None else "manual"
     return result
 
 
@@ -275,56 +323,32 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/assistant/chat")
 async def assistant_chat(request: ChatRequest):
-    """AI assistant for portfolio questions."""
+    """AI assistant for portfolio questions with simulation capability."""
     try:
-        # Get portfolio context
-        service = get_portfolio_service()
-        summary = service.get_portfolio_summary()
+        # Use the LLM agent with tool calling
+        result = run_llm_agent(
+            query=request.message,
+            conversation_history=[]
+        )
 
-        # Build context for AI
-        portfolio_context = f"""
-Portfolio Summary:
-- Total Exposure: ${summary['total_exposure']:,.0f}
-- Loan Count: {summary['loan_count']}
-- Average PD: {summary['avg_pd']:.2f}%
-- Average LGD: {summary['avg_lgd']:.2f}%
-- Expected Loss: ${summary['expected_loss']:,.0f}
-- Regulatory Capital: ${summary['regulatory_capital']:,.0f}
-- Economic Capital (VaR 99.9%): ${summary['economic_capital']:,.0f}
-- Current Loans: {summary['current_count']}
-- Delinquent Loans: {summary['delinquent_count']}
-- Default Loans: {summary['default_count']}
-"""
+        # Get portfolio summary for context if requested
+        portfolio_summary = None
+        if request.include_portfolio_context:
+            service = get_portfolio_service()
+            portfolio_summary = service.get_portfolio_summary()
 
-        # Try to use RAG service if available
-        try:
-            sys.path.insert(0, str(Path(__file__).parent.parent / "4_endpoints"))
-            from serve_rag import query
-
-            result = query({
-                "question": request.message,
-                "risk_context": {
-                    "portfolio_summary": summary,
-                    "avg_pd": summary['avg_pd'],
-                    "total_exposure": summary['total_exposure'],
-                },
-            })
-
-            return {
-                "message": result.get("answer", "Unable to generate response"),
-                "sources": result.get("sources", []),
-                "portfolio_context": summary if request.include_portfolio_context else None,
-            }
-
-        except Exception as e:
-            # Fallback: return portfolio summary as response
-            return {
-                "message": f"Based on the current portfolio:\n{portfolio_context}\n\nFor your question: '{request.message}'\n\nPlease refer to the portfolio metrics above for insights.",
-                "sources": [],
-                "portfolio_context": summary if request.include_portfolio_context else None,
-            }
+        return {
+            "message": result.get("response", "Unable to generate response"),
+            "sources": [],
+            "reasoning_steps": result.get("reasoning_steps", []),
+            "tool_calls": result.get("tool_calls", []),
+            "model": result.get("model"),
+            "portfolio_context": portfolio_summary,
+        }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "message": f"Error processing request: {str(e)}",
             "sources": [],
@@ -339,45 +363,40 @@ Portfolio Summary:
 @app.get("/api/monitoring/metrics")
 async def get_monitoring_metrics():
     """Get model and system metrics."""
-    import pickle
+    registry = get_model_registry()
 
-    base_path = Path(__file__).parent.parent / "data" / "models"
+    # Get active PD model
+    pd_metrics = {"status": "no_active_model", "model_id": None}
+    pd_model = registry.get_active_model(ModelType.PD)
+    if pd_model:
+        pd_metrics = {
+            "status": "healthy",
+            "model_id": pd_model.model_id,
+            "model_name": pd_model.model_name,
+            "version": pd_model.version,
+            "framework": pd_model.framework,
+            "trained_at": pd_model.training_date,
+            **(pd_model.metrics or {})
+        }
 
-    # Load PD model metrics
-    pd_metrics = {"status": "unknown", "auc_roc": None, "gini": None, "ks_statistic": None}
-    try:
-        pd_path = base_path / "pd" / "pd_model_latest.pkl"
-        if pd_path.exists():
-            with open(pd_path, 'rb') as f:
-                pd_data = pickle.load(f)
-                if isinstance(pd_data, dict) and "metrics" in pd_data:
-                    pd_metrics = {
-                        "status": "healthy",
-                        "version": pd_data.get("version", "1.0"),
-                        "model_type": pd_data.get("model_type", "unknown"),
-                        "trained_at": str(pd_data.get("trained_at", "")),
-                        **pd_data["metrics"]
-                    }
-    except Exception as e:
-        pd_metrics["error"] = str(e)
+    # Get active LGD model
+    lgd_metrics = {"status": "no_active_model", "model_id": None}
+    lgd_model = registry.get_active_model(ModelType.LGD)
+    if lgd_model:
+        lgd_metrics = {
+            "status": "healthy",
+            "model_id": lgd_model.model_id,
+            "model_name": lgd_model.model_name,
+            "version": lgd_model.version,
+            "framework": lgd_model.framework,
+            "trained_at": lgd_model.training_date,
+            **(lgd_model.metrics or {})
+        }
 
-    # Load LGD model metrics
-    lgd_metrics = {"status": "unknown", "mse": None, "r2": None}
-    try:
-        lgd_path = base_path / "lgd" / "lgd_model_latest.pkl"
-        if lgd_path.exists():
-            with open(lgd_path, 'rb') as f:
-                lgd_data = pickle.load(f)
-                if isinstance(lgd_data, dict) and "metrics" in lgd_data:
-                    lgd_metrics = {
-                        "status": "healthy",
-                        "version": lgd_data.get("version", "1.0"),
-                        "model_type": lgd_data.get("model_type", "unknown"),
-                        "trained_at": str(lgd_data.get("trained_at", "")),
-                        **lgd_data["metrics"]
-                    }
-    except Exception as e:
-        lgd_metrics["error"] = str(e)
+    # Get all registered models count
+    all_models = registry.list_models()
+    pd_models = [m for m in all_models if m.model_type == "pd"]
+    lgd_models = [m for m in all_models if m.model_type == "lgd"]
 
     # System metrics
     uptime_seconds = (datetime.now() - api_metrics["start_time"]).total_seconds()
@@ -391,6 +410,12 @@ async def get_monitoring_metrics():
     return {
         "pd_model": pd_metrics,
         "lgd_model": lgd_metrics,
+        "models_summary": {
+            "total_pd_models": len(pd_models),
+            "total_lgd_models": len(lgd_models),
+            "active_pd": pd_model.model_name if pd_model else None,
+            "active_lgd": lgd_model.model_name if lgd_model else None,
+        },
         "system": {
             "uptime_seconds": uptime_seconds,
             "total_requests": api_metrics["requests"],

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Portfolio Data Population Script
-Populates the loans and repayments tables with sample portfolio data.
+Populates the loans table with 20 real public companies.
 """
 
 import sqlite3
@@ -10,49 +10,21 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
 
-try:
-    from faker import Faker
-    import numpy as np
-except ImportError as e:
-    print(f"[ERROR] Missing required package: {e}")
-    print("Run: pip install faker numpy")
-    exit(1)
+import numpy as np
 
-# Initialize
-fake = Faker()
-Faker.seed(42)
+from real_companies import COMPANIES, INDUSTRY_PARAMS
+
+# Set seeds for reproducibility
 np.random.seed(42)
 random.seed(42)
 
 # Configuration
-NUM_LOANS = 500
-BASE_DATE = datetime(2020, 1, 1)
+BASE_DATE = datetime(2022, 1, 1)
 END_DATE = datetime(2024, 12, 31)
 
-# Industry definitions
-INDUSTRIES = {
-    "technology": {"default_rate": 0.03, "risk_tier": 2},
-    "healthcare": {"default_rate": 0.025, "risk_tier": 1},
-    "manufacturing": {"default_rate": 0.04, "risk_tier": 3},
-    "retail": {"default_rate": 0.06, "risk_tier": 4},
-    "financial_services": {"default_rate": 0.02, "risk_tier": 1},
-    "energy": {"default_rate": 0.05, "risk_tier": 4},
-    "construction": {"default_rate": 0.07, "risk_tier": 5},
-    "transportation": {"default_rate": 0.045, "risk_tier": 3},
-}
 
-PURPOSES = ["working_capital", "expansion", "equipment", "acquisition", "refinancing", "real_estate"]
-COLLATERAL_TYPES = ["real_estate", "equipment", "inventory", "receivables", "unsecured"]
-REGIONS = ["North America", "Europe", "Asia Pacific", "Latin America"]
-COUNTRIES = {
-    "North America": ["USA", "Canada"],
-    "Europe": ["UK", "Germany", "France", "Netherlands"],
-    "Asia Pacific": ["Japan", "Australia", "Singapore"],
-    "Latin America": ["Brazil", "Mexico"],
-}
-
-# Risk grade mapping based on PD
 def pd_to_grade(pd: float) -> str:
+    """Convert PD to risk grade."""
     if pd < 0.005: return "AAA"
     elif pd < 0.01: return "AA"
     elif pd < 0.02: return "A"
@@ -62,28 +34,21 @@ def pd_to_grade(pd: float) -> str:
     else: return "CCC"
 
 
-def generate_company_name() -> str:
-    """Generate a realistic company name."""
-    patterns = [
-        lambda: f"{fake.last_name()} {fake.company_suffix()}",
-        lambda: f"{fake.last_name()} & {fake.last_name()} {fake.company_suffix()}",
-        lambda: fake.company(),
-    ]
-    return random.choice(patterns)()
-
-
 def get_db_path() -> Path:
     """Get the database file path."""
     return Path(__file__).parent.parent / "data" / "credit_risk.db"
 
 
-def create_loans_table(conn: sqlite3.Connection):
-    """Create the loans table if it doesn't exist."""
+def create_tables(conn: sqlite3.Connection):
+    """Create all necessary tables."""
     cursor = conn.cursor()
+
+    # Loans table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS loans (
             loan_id TEXT PRIMARY KEY,
             company_name TEXT NOT NULL,
+            ticker TEXT,
             industry TEXT NOT NULL,
             region TEXT,
             country TEXT,
@@ -113,12 +78,43 @@ def create_loans_table(conn: sqlite3.Connection):
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    conn.commit()
 
+    # Company documents table for RAG
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS company_documents (
+            doc_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT NOT NULL,
+            company_name TEXT NOT NULL,
+            doc_type TEXT NOT NULL,
+            filing_date DATE,
+            fiscal_year INTEGER,
+            content TEXT,
+            summary TEXT,
+            file_path TEXT,
+            downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            indexed_at TIMESTAMP,
+            UNIQUE(ticker, doc_type, fiscal_year)
+        )
+    """)
 
-def create_repayments_table(conn: sqlite3.Connection):
-    """Create the repayments table if it doesn't exist."""
-    cursor = conn.cursor()
+    # Company news table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS company_news (
+            news_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT NOT NULL,
+            company_name TEXT NOT NULL,
+            title TEXT NOT NULL,
+            snippet TEXT,
+            source TEXT,
+            url TEXT,
+            published_date DATE,
+            fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sentiment TEXT,
+            relevance_score REAL
+        )
+    """)
+
+    # Repayments table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS repayments (
             repayment_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,30 +129,30 @@ def create_repayments_table(conn: sqlite3.Connection):
             FOREIGN KEY (loan_id) REFERENCES loans(loan_id)
         )
     """)
+
     conn.commit()
+    print("[OK] Tables created")
 
 
-def generate_loans(conn: sqlite3.Connection, n: int):
-    """Generate loan records."""
-    print(f"\n[INFO] Generating {n} loans...")
+def generate_loans(conn: sqlite3.Connection):
+    """Generate loan records for real companies."""
+    print(f"\n[INFO] Generating loans for {len(COMPANIES)} companies...")
 
     cursor = conn.cursor()
     now = datetime.now()
 
-    for i in range(n):
-        if (i + 1) % 100 == 0:
-            print(f"  - Generated {i + 1} loans")
+    purposes = ["working_capital", "expansion", "equipment", "acquisition", "refinancing"]
+    collateral_types = ["real_estate", "equipment", "inventory", "receivables", "unsecured"]
 
-        # Company info
-        industry = random.choice(list(INDUSTRIES.keys()))
-        industry_info = INDUSTRIES[industry]
-        company_name = generate_company_name()
-        region = random.choice(REGIONS)
-        country = random.choice(COUNTRIES[region])
+    for company in COMPANIES:
+        industry = company["industry"]
+        params = INDUSTRY_PARAMS[industry]
 
         # Loan details
-        loan_id = f"LOAN-{uuid.uuid4().hex[:8].upper()}"
-        original_balance = random.uniform(100000, 10000000)
+        loan_id = f"LOAN-{company['ticker']}-{uuid.uuid4().hex[:4].upper()}"
+
+        # Larger loan amounts for major corporations (in millions)
+        original_balance = random.uniform(50_000_000, 500_000_000)
 
         # Disbursement date
         days_range = (END_DATE - BASE_DATE).days
@@ -164,52 +160,52 @@ def generate_loans(conn: sqlite3.Connection, n: int):
         disbursement_date = BASE_DATE + timedelta(days=random_days)
 
         # Term and maturity
-        term_months = random.choice([12, 24, 36, 48, 60])
+        term_months = random.choice([36, 48, 60, 84, 120])
         maturity_date = disbursement_date + timedelta(days=term_months * 30)
 
         # Calculate how much has been paid off
         months_elapsed = max(0, (now - disbursement_date).days // 30)
         months_elapsed = min(months_elapsed, term_months)
 
-        # Interest rate based on risk
-        base_rate = 0.04 + industry_info["risk_tier"] * 0.005
-        interest_rate = base_rate + random.uniform(-0.01, 0.02)
-        interest_rate = max(0.03, min(0.12, interest_rate))
+        # Interest rate based on risk tier
+        base_rate = 0.035 + params["risk_tier"] * 0.003
+        interest_rate = base_rate + random.uniform(-0.005, 0.01)
+        interest_rate = max(0.03, min(0.08, interest_rate))
 
         # Outstanding balance
         if months_elapsed >= term_months:
             outstanding_balance = 0
             status = "paid_off"
         else:
-            # Simple amortization
             payment_ratio = months_elapsed / term_months
-            outstanding_balance = original_balance * (1 - payment_ratio * 0.9)
+            outstanding_balance = original_balance * (1 - payment_ratio * 0.85)
             status = "active"
 
-        # PD/LGD scores
-        base_pd = industry_info["default_rate"]
-        pd_score = base_pd * random.uniform(0.5, 2.0)
-        pd_score = max(0.001, min(0.30, pd_score))
+        # PD/LGD based on industry with some variation
+        pd_score = params["base_pd"] * random.uniform(0.7, 1.5)
+        pd_score = max(0.005, min(0.15, pd_score))
 
-        lgd_score = random.uniform(0.30, 0.60)
+        lgd_score = params["base_lgd"] * random.uniform(0.8, 1.2)
+        lgd_score = max(0.25, min(0.65, lgd_score))
+
         risk_grade = pd_to_grade(pd_score)
 
         # Purpose and collateral
-        purpose = random.choice(PURPOSES)
-        collateral_type = random.choice(COLLATERAL_TYPES)
-        collateral_value = 0 if collateral_type == "unsecured" else original_balance * random.uniform(1.0, 1.5)
+        purpose = random.choice(purposes)
+        collateral_type = random.choice(collateral_types)
+        collateral_value = 0 if collateral_type == "unsecured" else original_balance * random.uniform(1.0, 1.3)
 
-        # Default simulation (5% chance for active loans)
-        if status == "active" and random.random() < 0.05:
-            status = "defaulted"
-            days_past_due = random.randint(90, 365)
-            payment_status = "default"
-        elif status == "active" and random.random() < 0.10:
-            days_past_due = random.randint(1, 89)
-            payment_status = "delinquent"
+        # Payment status (most should be current for major corps)
+        if status == "active":
+            if random.random() < 0.05:  # 5% chance of minor delinquency
+                days_past_due = random.randint(1, 30)
+                payment_status = "delinquent"
+            else:
+                days_past_due = 0
+                payment_status = "current"
         else:
             days_past_due = 0
-            payment_status = "current" if status == "active" else "current"
+            payment_status = "current"
 
         # Last payment info
         if months_elapsed > 0:
@@ -220,25 +216,26 @@ def generate_loans(conn: sqlite3.Connection, n: int):
             last_payment_date = None
             last_payment_amount = 0
 
-        # Company financials
-        annual_revenue = random.uniform(1000000, 100000000)
-        profit_margin = random.uniform(0.02, 0.20)
+        # Company financials (realistic ranges for large corps)
+        annual_revenue = random.uniform(10_000_000_000, 500_000_000_000)
+        profit_margin = random.uniform(0.05, 0.25)
         net_income = annual_revenue * profit_margin
-        total_assets = annual_revenue / random.uniform(0.5, 2.0)
-        total_liabilities = total_assets * random.uniform(0.3, 0.7)
+        total_assets = annual_revenue * random.uniform(1.0, 3.0)
+        total_liabilities = total_assets * random.uniform(0.4, 0.7)
 
         cursor.execute("""
             INSERT INTO loans (
-                loan_id, company_name, industry, region, country,
+                loan_id, company_name, ticker, industry, region, country,
                 original_balance, outstanding_balance, interest_rate, term_months,
                 purpose, collateral_type, collateral_value,
                 disbursement_date, maturity_date,
                 last_payment_date, last_payment_amount, days_past_due, payment_status,
                 status, pd_score, lgd_score, risk_grade,
                 annual_revenue, net_income, total_assets, total_liabilities
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            loan_id, company_name, industry, region, country,
+            loan_id, company["name"], company["ticker"], industry,
+            company["region"], company["country"],
             round(original_balance, 2), round(outstanding_balance, 2),
             round(interest_rate, 4), term_months,
             purpose, collateral_type, round(collateral_value, 2),
@@ -250,39 +247,10 @@ def generate_loans(conn: sqlite3.Connection, n: int):
             round(total_assets, 2), round(total_liabilities, 2)
         ))
 
-        # Generate repayment history
-        if months_elapsed > 0:
-            generate_repayments(cursor, loan_id, disbursement_date,
-                              original_balance, term_months, interest_rate, months_elapsed)
+        print(f"  - {company['name']} ({company['ticker']}): ${original_balance/1e6:.1f}M loan")
 
     conn.commit()
-    print(f"  [OK] Generated {n} loans")
-
-
-def generate_repayments(cursor, loan_id: str, disbursement_date: datetime,
-                       original_balance: float, term_months: int,
-                       interest_rate: float, months_elapsed: int):
-    """Generate repayment records for a loan."""
-    monthly_principal = original_balance / term_months
-    balance = original_balance
-
-    for month in range(min(months_elapsed, term_months)):
-        payment_date = disbursement_date + timedelta(days=(month + 1) * 30)
-        interest_amount = balance * (interest_rate / 12)
-        principal_amount = monthly_principal
-        payment_amount = principal_amount + interest_amount
-        balance -= principal_amount
-
-        cursor.execute("""
-            INSERT INTO repayments (
-                loan_id, payment_date, payment_amount,
-                principal_amount, interest_amount, balance_after, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            loan_id, payment_date.strftime("%Y-%m-%d"),
-            round(payment_amount, 2), round(principal_amount, 2),
-            round(interest_amount, 2), round(max(0, balance), 2), "completed"
-        ))
+    print(f"\n[OK] Generated {len(COMPANIES)} loans")
 
 
 def print_summary(conn: sqlite3.Connection):
@@ -302,36 +270,27 @@ def print_summary(conn: sqlite3.Connection):
     cursor.execute("SELECT AVG(pd_score) FROM loans")
     avg_pd = cursor.fetchone()[0] or 0
 
-    cursor.execute("SELECT COUNT(*) FROM loans WHERE status = 'active'")
-    active_count = cursor.fetchone()[0]
+    cursor.execute("SELECT AVG(lgd_score) FROM loans")
+    avg_lgd = cursor.fetchone()[0] or 0
 
-    cursor.execute("SELECT COUNT(*) FROM loans WHERE status = 'defaulted'")
-    default_count = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM repayments")
-    repayment_count = cursor.fetchone()[0]
-
-    print(f"\n  Loans: {loan_count}")
-    print(f"  Total Exposure: ${total_exposure:,.0f}")
+    print(f"\n  Total Loans: {loan_count}")
+    print(f"  Total Exposure: ${total_exposure/1e9:.2f}B")
     print(f"  Average PD: {avg_pd * 100:.2f}%")
-    print(f"  Active Loans: {active_count}")
-    print(f"  Defaulted Loans: {default_count}")
-    print(f"  Repayment Records: {repayment_count}")
+    print(f"  Average LGD: {avg_lgd * 100:.2f}%")
 
-    # By industry
-    print("\n  Exposure by Industry:")
+    print("\n  Companies in Portfolio:")
     cursor.execute("""
-        SELECT industry, SUM(outstanding_balance) as exposure, COUNT(*) as count
-        FROM loans GROUP BY industry ORDER BY exposure DESC
+        SELECT company_name, ticker, industry, outstanding_balance, pd_score, risk_grade
+        FROM loans ORDER BY outstanding_balance DESC
     """)
     for row in cursor.fetchall():
-        print(f"    - {row[0]}: ${row[1]:,.0f} ({row[2]} loans)")
+        print(f"    - {row[0]} ({row[1]}): ${row[3]/1e6:.1f}M | PD: {row[4]*100:.2f}% | Grade: {row[5]}")
 
 
 def main():
     """Main function."""
     print("\n" + "=" * 60)
-    print("Credit Risk Platform - Portfolio Data Population")
+    print("Credit Risk Platform - Real Company Portfolio")
     print("=" * 60)
 
     db_path = get_db_path()
@@ -343,32 +302,36 @@ def main():
     conn = sqlite3.connect(str(db_path))
 
     try:
-        # Create tables
-        print("\n[INFO] Creating tables...")
-        create_loans_table(conn)
-        create_repayments_table(conn)
-
-        # Clear existing data
+        # Drop and recreate tables (schema changed)
+        print("\n[INFO] Dropping existing tables...")
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM repayments")
-        cursor.execute("DELETE FROM loans")
+        cursor.execute("DROP TABLE IF EXISTS repayments")
+        cursor.execute("DROP TABLE IF EXISTS loans")
+        cursor.execute("DROP TABLE IF EXISTS company_documents")
+        cursor.execute("DROP TABLE IF EXISTS company_news")
         conn.commit()
 
+        # Create tables
+        print("[INFO] Creating tables...")
+        create_tables(conn)
+
         # Generate loans
-        generate_loans(conn, NUM_LOANS)
+        generate_loans(conn)
 
         # Print summary
         print_summary(conn)
 
         print("\n" + "=" * 60)
-        print("[SUCCESS] Portfolio data populated!")
+        print("[SUCCESS] Portfolio populated with real companies!")
         print("=" * 60)
         print("\nNext steps:")
-        print("  1. Start backend: cd 5_backend && python main.py")
-        print("  2. Start frontend: cd 6_frontend && npm run dev")
+        print("  1. Run: python fetch_10k_filings.py (to download 10-K filings)")
+        print("  2. Start backend: cd ../5_backend && uvicorn main:app --reload")
 
     except Exception as e:
         print(f"\n[ERROR] Failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
     finally:
         conn.close()

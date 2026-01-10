@@ -30,6 +30,7 @@ async function fetchApi<T>(endpoint: string, options: ApiOptions = {}): Promise<
 export interface Loan {
   loan_id: string;
   company_name: string;
+  ticker?: string;
   industry: string;
   region: string;
   country: string;
@@ -260,12 +261,75 @@ export const assistantApi = {
     }),
 };
 
+// Model types
+export interface ModelInfo {
+  model_id: string;
+  model_type: string;
+  model_name: string;
+  version: string;
+  framework: string;
+  status: string;
+  training_date: string | null;
+  description: string | null;
+  metrics: Record<string, number> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelsListResponse {
+  models: ModelInfo[];
+  total: number;
+}
+
+export interface ActiveModelsResponse {
+  pd: ModelInfo | null;
+  lgd: ModelInfo | null;
+}
+
 // Monitoring API
 export const monitoringApi = {
   getMetrics: () =>
     fetchApi<{
       pd_model: Record<string, unknown>;
       lgd_model: Record<string, unknown>;
+      models_summary: {
+        total_pd_models: number;
+        total_lgd_models: number;
+        active_pd: string | null;
+        active_lgd: string | null;
+      };
       system: Record<string, unknown>;
     }>("/monitoring/metrics"),
+};
+
+// Models API
+export const modelsApi = {
+  list: (params?: { model_type?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.model_type) query.set("model_type", params.model_type);
+    if (params?.status) query.set("status", params.status);
+    const queryStr = query.toString();
+    return fetchApi<ModelsListResponse>(`/models${queryStr ? `?${queryStr}` : ""}`);
+  },
+
+  getActive: () => fetchApi<ActiveModelsResponse>("/models/active"),
+
+  get: (modelId: string) => fetchApi<ModelInfo>(`/models/${modelId}`),
+
+  activate: (modelId: string) =>
+    fetchApi<{ message: string; model_id: string }>(`/models/${modelId}/activate`, {
+      method: "POST",
+    }),
+
+  deactivate: (modelId: string) =>
+    fetchApi<{ message: string; model_id: string }>(`/models/${modelId}/deactivate`, {
+      method: "POST",
+    }),
+
+  getPredictions: (modelId: string, limit?: number) => {
+    const query = limit ? `?limit=${limit}` : "";
+    return fetchApi<{ model_id: string; predictions: unknown[]; count: number }>(
+      `/models/${modelId}/predictions${query}`
+    );
+  },
 };

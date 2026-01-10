@@ -27,14 +27,20 @@ export default function RootLayout({
                     <span className="text-xl font-bold text-blue-600">Credit Risk Platform</span>
                   </div>
                   <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                    <a href="/" className="border-blue-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                    <a href="/" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
                       Dashboard
                     </a>
-                    <a href="/applications" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                      Applications
+                    <a href="/portfolio" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                      Portfolio
+                    </a>
+                    <a href="/assistant" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                      AI Assistant
+                    </a>
+                    <a href="/analytics" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                      Analytics
                     </a>
                     <a href="/monitoring" className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                      Monitoring
+                      Model Management
                     </a>
                   </div>
                 </div>

@@ -851,6 +851,9 @@ def create_reasoning_graph() -> StateGraph:
 # Create compiled graph
 reasoning_graph = create_reasoning_graph().compile()
 
+# Alias for workflow API compatibility
+create_workflow_graph = create_reasoning_graph
+
 
 async def run_reasoning_agent(query: str, conversation_history: list[dict] | None = None) -> dict:
     """

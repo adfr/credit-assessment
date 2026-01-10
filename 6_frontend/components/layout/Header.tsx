@@ -5,9 +5,11 @@ import Link from "next/link";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
-  "/applications": "Applications",
-  "/applications/new": "New Application",
-  "/monitoring": "Monitoring",
+  "/assistant": "AI Assistant",
+  "/analytics": "Analytics",
+  "/monitoring": "Model Management",
+  "/portfolio": "Portfolio",
+  "/portfolio/new": "Add New Loan",
 };
 
 export function Header() {
@@ -20,14 +22,8 @@ export function Header() {
     }
 
     // Handle dynamic routes
-    if (pathname.includes("/applications/") && pathname.includes("/workflow")) {
-      return "Workflow";
-    }
-    if (pathname.includes("/applications/") && pathname.includes("/analyst")) {
-      return "AI Analyst";
-    }
-    if (pathname.includes("/applications/")) {
-      return "Application Details";
+    if (pathname.includes("/portfolio/")) {
+      return "Loan Details";
     }
 
     return "Credit Risk Platform";
@@ -36,24 +32,22 @@ export function Header() {
   // Generate breadcrumbs
   const getBreadcrumbs = () => {
     const parts = pathname.split("/").filter(Boolean);
-    const breadcrumbs = [{ name: "Home", href: "/" }];
+    const breadcrumbs = [{ name: "Dashboard", href: "/" }];
 
     let path = "";
-    parts.forEach((part, index) => {
+    parts.forEach((part) => {
       path += `/${part}`;
 
-      if (part === "applications") {
-        breadcrumbs.push({ name: "Applications", href: "/applications" });
-      } else if (part === "new") {
-        breadcrumbs.push({ name: "New", href: path });
-      } else if (part === "workflow") {
-        breadcrumbs.push({ name: "Workflow", href: path });
-      } else if (part === "analyst") {
-        breadcrumbs.push({ name: "Analyst", href: path });
+      if (part === "assistant") {
+        breadcrumbs.push({ name: "AI Assistant", href: "/assistant" });
+      } else if (part === "analytics") {
+        breadcrumbs.push({ name: "Analytics", href: "/analytics" });
       } else if (part === "monitoring") {
-        breadcrumbs.push({ name: "Monitoring", href: "/monitoring" });
-      } else if (index === 1 && parts[0] === "applications") {
-        breadcrumbs.push({ name: part.slice(0, 8) + "...", href: path });
+        breadcrumbs.push({ name: "Model Management", href: "/monitoring" });
+      } else if (part === "portfolio") {
+        breadcrumbs.push({ name: "Portfolio", href: "/portfolio" });
+      } else if (part === "new") {
+        breadcrumbs.push({ name: "New Loan", href: path });
       }
     });
 

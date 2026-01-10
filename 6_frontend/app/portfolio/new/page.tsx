@@ -45,7 +45,6 @@ const collateralTypes = [
   "cash",
 ];
 
-const riskGrades = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
 
 export default function AddLoanPage() {
   const router = useRouter();
@@ -63,9 +62,7 @@ export default function AddLoanPage() {
     purpose: "working_capital",
     collateral_type: "unsecured",
     collateral_value: "0",
-    pd_score: "5.0",
-    lgd_score: "45.0",
-    risk_grade: "BBB",
+    // PD/LGD will be predicted by the model based on financials
     annual_revenue: "",
     net_income: "",
     total_assets: "",
@@ -94,9 +91,7 @@ export default function AddLoanPage() {
         purpose: formData.purpose,
         collateral_type: formData.collateral_type,
         collateral_value: parseFloat(formData.collateral_value) || 0,
-        pd_score: parseFloat(formData.pd_score) / 100,
-        lgd_score: parseFloat(formData.lgd_score) / 100,
-        risk_grade: formData.risk_grade,
+        // PD/LGD will be predicted by the backend model
         annual_revenue: parseFloat(formData.annual_revenue) || 0,
         net_income: parseFloat(formData.net_income) || 0,
         total_assets: parseFloat(formData.total_assets) || 0,
@@ -124,7 +119,7 @@ export default function AddLoanPage() {
           <span className="text-gray-900">Add Loan</span>
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Add New Loan</h1>
-        <p className="text-gray-500">Add a loan to the portfolio with risk parameters</p>
+        <p className="text-gray-500">PD and LGD scores will be predicted by ML models based on company financials</p>
       </div>
 
       {error && (
@@ -300,66 +295,10 @@ export default function AddLoanPage() {
           </div>
         </div>
 
-        {/* Risk Parameters */}
-        <div className="bg-white rounded-lg border p-5">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Parameters</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                PD Score (%)
-              </label>
-              <input
-                type="number"
-                name="pd_score"
-                value={formData.pd_score}
-                onChange={handleChange}
-                step="0.1"
-                min="0.01"
-                max="100"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">Probability of Default</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                LGD Score (%)
-              </label>
-              <input
-                type="number"
-                name="lgd_score"
-                value={formData.lgd_score}
-                onChange={handleChange}
-                step="0.1"
-                min="0"
-                max="100"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">Loss Given Default</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Risk Grade
-              </label>
-              <select
-                name="risk_grade"
-                value={formData.risk_grade}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {riskGrades.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Company Financials (Optional) */}
+        {/* Company Financials - Used for PD/LGD Model Prediction */}
         <div className="bg-white rounded-lg border p-5">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Company Financials</h2>
-          <p className="text-sm text-gray-500 mb-4">Optional - for risk context</p>
+          <p className="text-sm text-gray-500 mb-4">Used by ML models to predict PD and LGD scores</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

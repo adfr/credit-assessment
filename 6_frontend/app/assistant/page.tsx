@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { assistantApi, ChatResponse, portfolioApi, PortfolioSummary } from "@/lib/api";
 
 interface Message {
@@ -144,7 +146,15 @@ export default function AssistantPage() {
                         : "bg-gray-100 text-gray-900"
                     }`}
                   >
-                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    {message.role === "user" ? (
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                    ) : (
+                      <div className="prose prose-sm max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-table:my-2 prose-th:bg-gray-200 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-td:border prose-th:border">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-gray-200">
                         <p className="text-xs text-gray-500 mb-1">Sources:</p>

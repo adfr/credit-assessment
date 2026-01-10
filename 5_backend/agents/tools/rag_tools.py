@@ -6,15 +6,89 @@ from typing import Any, Optional
 from pathlib import Path
 
 
-def get_chroma_client():
-    """Get ChromaDB client"""
+def get_chroma_client(collection_type: str = "policies"):
+    """Get ChromaDB client for specified collection type."""
     try:
         import chromadb
-        persist_dir = Path(__file__).parent.parent.parent.parent / "data" / "chroma_db"
+        if collection_type == "company_docs":
+            persist_dir = Path(__file__).parent.parent.parent.parent / "data" / "chroma_company_docs"
+        else:
+            persist_dir = Path(__file__).parent.parent.parent.parent / "data" / "chroma_db"
         client = chromadb.PersistentClient(path=str(persist_dir))
         return client
     except Exception as e:
         return None
+
+
+def query_company_documents(
+    query: str,
+    ticker: Optional[str] = None,
+    n_results: int = 5
+) -> dict[str, Any]:
+    """
+    Query company 10-K filings and financial documents.
+
+    Args:
+        query: Search query (e.g., "risk factors", "revenue growth")
+        ticker: Optional ticker to filter by specific company
+        n_results: Number of results to return
+
+    Returns:
+        dict with relevant document chunks and metadata
+    """
+    client = get_chroma_client("company_docs")
+
+    if client is None:
+        return {
+            "documents": [],
+            "error": "Company document vector store not available. Run: python 1_data/index_documents.py",
+        }
+
+    try:
+        from chromadb.utils import embedding_functions
+        embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+
+        collection = client.get_collection(
+            name="company_filings",
+            embedding_function=embedding_fn
+        )
+
+        # Build where filter for ticker
+        where_filter = None
+        if ticker:
+            where_filter = {"ticker": ticker.upper()}
+
+        results = collection.query(
+            query_texts=[query],
+            n_results=n_results,
+            where=where_filter,
+        )
+
+        documents = []
+        if results and results.get("documents"):
+            for i, doc in enumerate(results["documents"][0]):
+                metadata = results["metadatas"][0][i] if results.get("metadatas") else {}
+                distance = results["distances"][0][i] if results.get("distances") else None
+                documents.append({
+                    "content": doc[:1000] + "..." if len(doc) > 1000 else doc,
+                    "ticker": metadata.get("ticker", "Unknown"),
+                    "company_name": metadata.get("company_name", "Unknown"),
+                    "doc_type": metadata.get("doc_type", "10-K"),
+                    "fiscal_year": metadata.get("fiscal_year"),
+                    "relevance_score": round(1 - distance, 3) if distance else None,
+                })
+
+        return {
+            "query": query,
+            "ticker_filter": ticker,
+            "documents": documents,
+            "count": len(documents),
+        }
+    except Exception as e:
+        return {
+            "documents": [],
+            "error": str(e),
+        }
 
 
 def query_policies(

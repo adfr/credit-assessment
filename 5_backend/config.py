@@ -83,7 +83,7 @@ class Settings(BaseSettings):
             "pd_auto_decline_threshold": get_nested(yaml_cfg, "thresholds", "pd_auto_decline", default=0.15),
             "pd_refer_threshold": get_nested(yaml_cfg, "thresholds", "pd_refer", default=0.10),
             "min_rorac_threshold": get_nested(yaml_cfg, "thresholds", "min_rorac", default=0.12),
-            "cors_origins": get_nested(yaml_cfg, "cors", "origins", default=["http://localhost:3000", "http://127.0.0.1:3000"]),
+            "cors_origins": get_nested(yaml_cfg, "cors", "origins", default=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]),
             "log_level": get_nested(yaml_cfg, "logging", "level", default="INFO"),
             "ssl_enabled": get_nested(yaml_cfg, "security", "ssl_enabled", default=False),
             "rate_limiting_enabled": get_nested(yaml_cfg, "security", "rate_limiting_enabled", default=False),
@@ -150,7 +150,7 @@ class Settings(BaseSettings):
     min_rorac_threshold: float = 0.12
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]
 
     # Security
     ssl_enabled: bool = False
