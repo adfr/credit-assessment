@@ -19,6 +19,8 @@ class ReasoningStepType(str, Enum):
     QUERY_ANALYSIS = "query_analysis"
     TOOL_CALL = "tool_call"
     COMPUTATION = "computation"
+    CODE_EXECUTION = "code_execution"
+    SIMULATION = "simulation"
     RAG_RETRIEVAL = "rag_retrieval"
     AGGREGATION = "aggregation"
     RESPONSE_GENERATION = "response_generation"
@@ -126,7 +128,9 @@ class AgentState:
     entities_extracted: dict[str, Any] = field(default_factory=dict)
     requires_computation: bool = False
     requires_rag: bool = False
+    requires_code_execution: bool = False
     target_loan_id: Optional[str] = None
+    scenario_params: dict[str, Any] = field(default_factory=dict)
 
     # Canvas reasoning steps
     reasoning_steps: list[ReasoningStep] = field(default_factory=list)
@@ -139,6 +143,10 @@ class AgentState:
 
     # Computed metrics (on-the-fly calculations)
     computed_metrics: dict[str, Any] = field(default_factory=dict)
+
+    # Simulation results (from code execution)
+    simulation_result: Optional[dict[str, Any]] = None
+    simulation_output: str = ""
 
     # Tool results
     tool_results: dict[str, Any] = field(default_factory=dict)
@@ -215,12 +223,16 @@ class GraphState(TypedDict, total=False):
     entities_extracted: dict[str, Any]
     requires_computation: bool
     requires_rag: bool
+    requires_code_execution: bool
     target_loan_id: str
+    scenario_params: dict[str, Any]
     reasoning_steps: list[dict]
     portfolio_context: dict
     loan_context: dict
     rag_documents: list[dict]
     computed_metrics: dict[str, Any]
+    simulation_result: dict[str, Any]
+    simulation_output: str
     tool_results: dict[str, Any]
     response: str
     sources: list[dict[str, str]]

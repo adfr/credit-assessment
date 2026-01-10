@@ -32,6 +32,13 @@ from .rag_tools import (
     get_relevant_context,
 )
 
+from .code_execution_tools import (
+    execute_code,
+    generate_scenario_code,
+    get_portfolio_dataframe,
+    calculate_portfolio_var,
+)
+
 __all__ = [
     # Portfolio tools
     "get_portfolio_summary",
@@ -53,4 +60,9 @@ __all__ = [
     # RAG tools
     "query_policies",
     "get_relevant_context",
+    # Code execution tools
+    "execute_code",
+    "generate_scenario_code",
+    "get_portfolio_dataframe",
+    "calculate_portfolio_var",
 ]

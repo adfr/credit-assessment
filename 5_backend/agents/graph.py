@@ -43,6 +43,11 @@ from .tools.rag_tools import (
     query_policies,
     get_relevant_context,
 )
+from .tools.code_execution_tools import (
+    execute_code,
+    generate_scenario_code,
+    get_portfolio_dataframe,
+)
 
 
 def _create_step(step_type: ReasoningStepType, title: str, input_data: dict) -> dict:
@@ -93,11 +98,100 @@ def analyze_query(state: GraphState) -> GraphState:
     intent = "general"
     requires_computation = False
     requires_rag = False
+    requires_code_execution = False
     target_loan_id = None
     entities = {}
+    scenario_params = {}
 
-    # Intent detection
-    if any(w in query for w in ["portfolio", "overview", "summary", "total"]):
+    # Intent detection - check for simulation/scenario first (highest priority)
+    simulation_keywords = [
+        "what if", "what happens", "simulate", "scenario", "stress",
+        "impact", "sensitivity", "shock", "increase", "decrease",
+        "change", "affect", "effect", "hypothetical"
+    ]
+
+    if any(w in query for w in simulation_keywords):
+        intent = "simulation"
+        requires_code_execution = True
+
+        # Extract scenario parameters from query
+        import re
+
+        # Try to extract industry filter
+        # Map common names to database values
+        industry_map = {
+            "financial": "financial_services",
+            "financials": "financial_services",
+            "financial services": "financial_services",
+            "financial_services": "financial_services",
+            "tech": "technology",
+            "technology": "technology",
+            "healthcare": "healthcare",
+            "health care": "healthcare",
+            "retail": "retail",
+            "manufacturing": "manufacturing",
+            "construction": "construction",
+            "energy": "energy",
+            "transportation": "transportation",
+            "real estate": "real_estate",
+            "real_estate": "real_estate",
+        }
+
+        # First, try direct industry name matching
+        for name, db_value in industry_map.items():
+            if name in query.lower():
+                scenario_params["filter_industry"] = db_value
+                break
+
+        # If not found, try patterns
+        if "filter_industry" not in scenario_params:
+            industry_patterns = [
+                r"(?:for|of|in)\s+(\w+(?:\s+\w+)?)\s+(?:loans|sector|industry)",
+                r"(\w+(?:\s+\w+)?)\s+(?:loans|sector|industry)",
+            ]
+            for pattern in industry_patterns:
+                match = re.search(pattern, query, re.IGNORECASE)
+                if match:
+                    industry = match.group(1).lower().replace(" ", "_")
+                    if industry in industry_map:
+                        scenario_params["filter_industry"] = industry_map[industry]
+                    break
+
+        # Try to extract PD change
+        pd_patterns = [
+            r"pd\s+(?:increases?|goes up|rises?)\s+(?:by\s+)?(\d+(?:\.\d+)?)\s*(?:pp|percentage points?|%|percent)?",
+            r"(\d+(?:\.\d+)?)\s*(?:pp|percentage points?)\s+(?:increase|rise)\s+(?:in\s+)?pd",
+            r"pd\s+\+\s*(\d+(?:\.\d+)?)\s*(?:pp|%)?",
+        ]
+        for pattern in pd_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                pd_change = float(match.group(1))
+                # Convert percentage points to decimal
+                if pd_change > 1:
+                    pd_change = pd_change / 100
+                scenario_params["pd_change"] = pd_change
+                break
+
+        # Try to extract LGD change
+        lgd_patterns = [
+            r"lgd\s+(?:increases?|goes up|rises?)\s+(?:by\s+)?(\d+(?:\.\d+)?)\s*(?:pp|percentage points?|%|percent)?",
+            r"(\d+(?:\.\d+)?)\s*(?:pp|percentage points?)\s+(?:increase|rise)\s+(?:in\s+)?lgd",
+        ]
+        for pattern in lgd_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                lgd_change = float(match.group(1))
+                if lgd_change > 1:
+                    lgd_change = lgd_change / 100
+                scenario_params["lgd_change"] = lgd_change
+                break
+
+        # Default PD change if not specified but simulation requested
+        if "pd_change" not in scenario_params and "lgd_change" not in scenario_params:
+            scenario_params["pd_change"] = 0.01  # Default 1pp
+
+    elif any(w in query for w in ["portfolio", "overview", "summary", "total"]):
         intent = "portfolio_overview"
         requires_computation = True
 
@@ -148,8 +242,10 @@ def analyze_query(state: GraphState) -> GraphState:
         "intent": intent,
         "requires_computation": requires_computation,
         "requires_rag": requires_rag,
+        "requires_code_execution": requires_code_execution,
         "target_loan_id": target_loan_id,
         "entities": entities,
+        "scenario_params": scenario_params,
     }
 
     duration = int((time.time() - start_time) * 1000)
@@ -165,8 +261,10 @@ def analyze_query(state: GraphState) -> GraphState:
         "query_intent": intent,
         "requires_computation": requires_computation,
         "requires_rag": requires_rag,
+        "requires_code_execution": requires_code_execution,
         "target_loan_id": target_loan_id,
         "entities_extracted": entities,
+        "scenario_params": scenario_params,
         "reasoning_steps": steps,
         "status": "analyzing",
     }
@@ -319,6 +417,90 @@ def compute_metrics(state: GraphState) -> GraphState:
     }
 
 
+def execute_simulation(state: GraphState) -> GraphState:
+    """
+    Execute Python code for scenario/simulation analysis.
+
+    This node generates and runs Python code to perform what-if analysis,
+    stress testing, and sensitivity simulations.
+    """
+    start_time = time.time()
+    query = state.get("query", "")
+    scenario_params = state.get("scenario_params", {})
+
+    step = _create_step(
+        ReasoningStepType.COMPUTATION,
+        "Running Simulation",
+        {
+            "query": query,
+            "scenario_params": scenario_params,
+        }
+    )
+
+    try:
+        # Build filter criteria from scenario params
+        filter_criteria = {}
+        if "filter_industry" in scenario_params:
+            filter_criteria["industry"] = scenario_params["filter_industry"]
+
+        # Build shock parameters
+        shock_params = {}
+        if "pd_change" in scenario_params:
+            shock_params["pd_change"] = scenario_params["pd_change"]
+        if "lgd_change" in scenario_params:
+            shock_params["lgd_change"] = scenario_params["lgd_change"]
+
+        # Default shock if none specified
+        if not shock_params:
+            shock_params["pd_change"] = 0.01
+
+        # Generate scenario code
+        code = generate_scenario_code(
+            scenario_description=query,
+            filter_criteria=filter_criteria if filter_criteria else None,
+            shock_parameters=shock_params,
+            metrics=["var", "expected_loss", "regulatory_capital"]
+        )
+
+        # Execute the code
+        result = execute_code(code)
+
+        if result["success"]:
+            simulation_result = result.get("result", {})
+            output = result.get("output", "")
+
+            step = _update_step(step, {
+                "simulation_result": simulation_result,
+                "output": output,
+                "code_executed": code[:500] + "..." if len(code) > 500 else code,
+            })
+        else:
+            step = _update_step(step, {
+                "error": result.get("error", "Unknown error"),
+                "traceback": result.get("traceback", ""),
+            }, "failed")
+            simulation_result = None
+            output = ""
+
+    except Exception as e:
+        step = _update_step(step, {"error": str(e)}, "failed")
+        simulation_result = None
+        output = ""
+
+    duration = int((time.time() - start_time) * 1000)
+    step["duration_ms"] = duration
+
+    steps = state.get("reasoning_steps", [])
+    steps.append(step)
+
+    return {
+        **state,
+        "simulation_result": simulation_result,
+        "simulation_output": output,
+        "reasoning_steps": steps,
+    }
+
+
 def retrieve_rag_context(state: GraphState) -> GraphState:
     """
     Retrieve relevant policy documents using RAG
@@ -380,12 +562,17 @@ def generate_response(state: GraphState) -> GraphState:
         computed = state.get("computed_metrics", {})
         loan = state.get("loan_context")
         rag_docs = state.get("rag_documents", [])
+        simulation_result = state.get("simulation_result")
+        simulation_output = state.get("simulation_output", "")
 
         # Build response based on intent
-        response = _build_response(intent, portfolio, computed, loan, rag_docs, state.get("query", ""))
+        response = _build_response(
+            intent, portfolio, computed, loan, rag_docs,
+            state.get("query", ""), simulation_result, simulation_output
+        )
 
         step = _update_step(step, {"response_length": len(response)})
-        confidence = 0.85 if portfolio or computed or loan else 0.6
+        confidence = 0.90 if simulation_result else (0.85 if portfolio or computed or loan else 0.6)
 
     except Exception as e:
         response = f"I encountered an error processing your request: {str(e)}"
@@ -413,9 +600,46 @@ def _build_response(
     computed: dict,
     loan: dict | None,
     rag_docs: list,
-    query: str
+    query: str,
+    simulation_result: dict | None = None,
+    simulation_output: str = ""
 ) -> str:
     """Build response based on context"""
+
+    # Handle simulation results first
+    if intent == "simulation" and simulation_result:
+        result = simulation_result
+        baseline = result.get("baseline", {})
+        stressed = result.get("stressed", {})
+        impact = result.get("impact", {})
+
+        response = f"""## Scenario Analysis Results
+
+**Scenario:** {result.get('scenario', query)[:100]}
+
+**Scope:**
+- Affected Loans: {result.get('n_affected_loans', 'N/A')}
+- Affected Exposure: ${result.get('affected_exposure', 0):,.0f}
+
+### Baseline vs Stressed Comparison
+
+| Metric | Baseline | Stressed | Change |
+|--------|----------|----------|--------|
+| VaR (99.9%) | ${baseline.get('var', 0):,.0f} | ${stressed.get('var', 0):,.0f} | {impact.get('var_change_pct', 0):+.1f}% |
+| Expected Loss | ${baseline.get('expected_loss', 0):,.0f} | ${stressed.get('expected_loss', 0):,.0f} | {impact.get('el_change_pct', 0):+.1f}% |
+| Regulatory Capital | ${baseline.get('regulatory_capital', 0):,.0f} | ${stressed.get('regulatory_capital', 0):,.0f} | {impact.get('capital_change_pct', 0):+.1f}% |
+
+### Impact Summary
+- **VaR Increase:** ${impact.get('var_change', 0):,.0f} ({impact.get('var_change_pct', 0):+.1f}%)
+- **Additional Capital Required:** ${impact.get('capital_change', 0):,.0f}
+"""
+        if simulation_output:
+            response += f"\n### Execution Log\n```\n{simulation_output[:1000]}\n```"
+
+        return response
+
+    elif intent == "simulation" and not simulation_result:
+        return "I was unable to run the simulation. Please check the query format and try again."
 
     if intent == "portfolio_overview":
         if portfolio:
@@ -476,11 +700,14 @@ def _build_response(
 # Routing Logic
 # ============================================================================
 
-def route_after_analysis(state: GraphState) -> Literal["fetch_portfolio", "fetch_loan", "retrieve_rag", "generate"]:
+def route_after_analysis(state: GraphState) -> Literal["fetch_portfolio", "fetch_loan", "retrieve_rag", "execute_simulation", "generate"]:
     """Route based on query analysis"""
     intent = state.get("query_intent", "general")
 
-    if intent in ["portfolio_overview", "concentration_analysis", "risk_metrics", "calculation"]:
+    # Simulation gets priority - goes directly to code execution
+    if intent == "simulation" or state.get("requires_code_execution"):
+        return "execute_simulation"
+    elif intent in ["portfolio_overview", "concentration_analysis", "risk_metrics", "calculation"]:
         return "fetch_portfolio"
     elif intent == "loan_detail" and state.get("target_loan_id"):
         return "fetch_loan"
@@ -515,6 +742,14 @@ def route_after_compute(state: GraphState) -> Literal["retrieve_rag", "generate"
     return "generate"
 
 
+def route_after_simulation(state: GraphState) -> Literal["retrieve_rag", "generate"]:
+    """Route after simulation execution"""
+    # Optionally fetch RAG context for policy compliance check
+    if state.get("requires_rag"):
+        return "retrieve_rag"
+    return "generate"
+
+
 # ============================================================================
 # Graph Construction
 # ============================================================================
@@ -525,10 +760,15 @@ def create_reasoning_graph() -> StateGraph:
 
     Flow:
     1. analyze_query -> Understand intent and requirements
-    2. fetch_portfolio_context OR fetch_loan_context -> Get relevant data
+    2. fetch_portfolio_context OR fetch_loan_context OR execute_simulation -> Get data/run simulation
     3. compute_metrics -> Perform calculations if needed
     4. retrieve_rag_context -> Get policy context if needed
     5. generate_response -> Create final response
+
+    For simulations:
+    1. analyze_query -> Detect simulation intent
+    2. execute_simulation -> Run Python code for scenario analysis
+    3. generate_response -> Format results
     """
     graph = StateGraph(GraphState)
 
@@ -537,6 +777,7 @@ def create_reasoning_graph() -> StateGraph:
     graph.add_node("fetch_portfolio", fetch_portfolio_context)
     graph.add_node("fetch_loan", fetch_loan_context)
     graph.add_node("compute", compute_metrics)
+    graph.add_node("execute_simulation", execute_simulation)
     graph.add_node("retrieve_rag", retrieve_rag_context)
     graph.add_node("generate", generate_response)
 
@@ -550,6 +791,7 @@ def create_reasoning_graph() -> StateGraph:
         {
             "fetch_portfolio": "fetch_portfolio",
             "fetch_loan": "fetch_loan",
+            "execute_simulation": "execute_simulation",
             "retrieve_rag": "retrieve_rag",
             "generate": "generate",
         }
@@ -581,6 +823,16 @@ def create_reasoning_graph() -> StateGraph:
     graph.add_conditional_edges(
         "compute",
         route_after_compute,
+        {
+            "retrieve_rag": "retrieve_rag",
+            "generate": "generate",
+        }
+    )
+
+    # Add conditional edges from simulation
+    graph.add_conditional_edges(
+        "execute_simulation",
+        route_after_simulation,
         {
             "retrieve_rag": "retrieve_rag",
             "generate": "generate",
