@@ -16,8 +16,19 @@ date: "2024-01-15"
 environment_variables:
   ANTHROPIC_API_KEY:
     default: ""
-    description: "API key for Claude AI services"
+    description: "API key for Claude AI services (required for LLM features)"
     required: true
+  SERPER_API_KEY:
+    default: ""
+    description: "API key for Serper news search (get from https://serper.dev)"
+    required: true
+  FINANCIAL_DATASETS_API_KEY:
+    default: ""
+    description: "API key for 10-K filings (get from https://financialdatasets.ai)"
+    required: true
+  APP_ENV:
+    default: "production"
+    description: "Application environment (local or production)"
   DATABASE_PATH:
     default: "data/credit_risk.db"
     description: "Path to SQLite database"
