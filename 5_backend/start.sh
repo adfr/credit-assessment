@@ -1,24 +1,40 @@
-#!/bin/bash
-# Credit Risk Platform - Backend Startup Script
+#!/usr/bin/env python3
+"""
+Credit Risk Platform - Backend Startup Script
+"""
 
-# Set environment variables
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-export API_HOST="${API_HOST:-0.0.0.0}"
-export API_PORT="${API_PORT:-8000}"
+import os
+import sys
+from pathlib import Path
 
-echo "=================================================="
-echo "Credit Risk Platform - Backend API"
-echo "=================================================="
-echo ""
-echo "Starting server on ${API_HOST}:${API_PORT}"
-echo ""
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 
-# Check if uvicorn is installed
-if ! command -v uvicorn &> /dev/null; then
-    echo "[ERROR] uvicorn not found. Installing..."
-    pip install uvicorn[standard]
-fi
+# Set up paths
+backend_dir = PROJECT_ROOT / "5_backend"
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(backend_dir))
+os.chdir(backend_dir)
 
-# Start the server
-cd "$(dirname "$0")"
-uvicorn main:app --host "${API_HOST}" --port "${API_PORT}" --reload
+# Configuration
+API_HOST = os.environ.get("API_HOST", "0.0.0.0")
+API_PORT = int(os.environ.get("API_PORT", "8000"))
+
+print("=" * 50)
+print("Credit Risk Platform - Backend API")
+print("=" * 50)
+print()
+print(f"Starting server on {API_HOST}:{API_PORT}")
+print()
+
+# Import and run uvicorn
+import uvicorn
+from main import app
+
+if __name__ == "__main__":
+    uvicorn.run(
+        app,
+        host=API_HOST,
+        port=API_PORT,
+        reload=False
+    )
