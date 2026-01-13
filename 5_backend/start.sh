@@ -8,30 +8,6 @@ import os
 import sys
 from pathlib import Path
 
-# Check if we're in a Jupyter/IPython environment - must be done FIRST
-def is_notebook():
-    try:
-        from IPython import get_ipython
-        if get_ipython() is not None:
-            return True
-    except:
-        pass
-    return False
-
-# Apply nest_asyncio BEFORE importing uvicorn if in notebook
-if is_notebook():
-    try:
-        import nest_asyncio
-        nest_asyncio.apply()
-        print("[INFO] Applied nest_asyncio for Jupyter compatibility")
-    except ImportError:
-        print("[INFO] Installing nest_asyncio...")
-        import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "nest_asyncio"])
-        import nest_asyncio
-        nest_asyncio.apply()
-        print("[INFO] Applied nest_asyncio for Jupyter compatibility")
-
 # Get project root from environment or current working directory
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 
@@ -52,9 +28,34 @@ print()
 print(f"Starting server on {API_HOST}:{API_PORT}")
 print()
 
-# Import uvicorn and app AFTER nest_asyncio is applied
+# Import uvicorn and app
 import uvicorn
 from main import app
 
+# Check if we're in a Jupyter/IPython environment
+def is_notebook():
+    try:
+        from IPython import get_ipython
+        if get_ipython() is not None:
+            return True
+    except:
+        pass
+    return False
+
 if __name__ == "__main__":
-    uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)
+    if is_notebook():
+        # In Jupyter: run uvicorn in a background thread
+        import threading
+
+        config = uvicorn.Config(app, host=API_HOST, port=API_PORT, log_level="info")
+        server = uvicorn.Server(config)
+
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+
+        print(f"\n[INFO] Server running in background thread")
+        print(f"[INFO] API available at http://{API_HOST}:{API_PORT}")
+        print(f"[INFO] Docs available at http://{API_HOST}:{API_PORT}/docs")
+    else:
+        # Standard execution
+        uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)
