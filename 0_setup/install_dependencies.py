@@ -10,6 +10,9 @@ import sys
 import os
 from pathlib import Path
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def run_command(command: list[str], description: str) -> bool:
     """Run a shell command and return success status."""
@@ -40,7 +43,7 @@ def run_command(command: list[str], description: str) -> bool:
 
 def install_python_packages():
     """Install Python packages from requirements.txt."""
-    project_root = Path(__file__).parent.parent
+    project_root = PROJECT_ROOT
     requirements_file = project_root / "requirements.txt"
 
     if not requirements_file.exists():
@@ -112,7 +115,7 @@ def check_nodejs():
 
 def create_env_template():
     """Create a .env.template file with required environment variables."""
-    project_root = Path(__file__).parent.parent
+    project_root = PROJECT_ROOT
     env_template = project_root / ".env.template"
 
     template_content = """# Credit Risk Platform Environment Variables

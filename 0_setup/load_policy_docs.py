@@ -17,6 +17,9 @@ except ImportError:
     print("[ERROR] ChromaDB not installed. Run: pip install chromadb")
     sys.exit(1)
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 # Sample Policy Documents
 POLICY_DOCUMENTS = [
@@ -409,7 +412,7 @@ For accounts with PD >15%:
 
 def get_chroma_path() -> Path:
     """Get the ChromaDB persistence directory."""
-    project_root = Path(__file__).parent.parent
+    project_root = PROJECT_ROOT
     return project_root / "data" / "chroma_db"
 
 
@@ -559,7 +562,7 @@ def main():
     total_chunks = load_policy_documents(client)
 
     # Save policy files as markdown
-    project_root = Path(__file__).parent.parent
+    project_root = PROJECT_ROOT
     policy_dir = project_root / "docs" / "policies"
     save_policy_files(policy_dir)
 

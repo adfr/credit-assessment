@@ -16,11 +16,17 @@ except ImportError:
     print("[ERROR] ChromaDB not installed. Run: pip install chromadb")
     sys.exit(1)
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def get_chroma_path() -> Path:
     """Get the ChromaDB persistence directory."""
-    project_root = Path(__file__).parent.parent
-    chroma_dir = project_root / "data" / "chroma_db"
+    chroma_path = os.environ.get("CHROMA_PERSIST_DIRECTORY")
+    if chroma_path:
+        chroma_dir = Path(chroma_path)
+    else:
+        chroma_dir = PROJECT_ROOT / "data" / "chroma_db"
     chroma_dir.mkdir(parents=True, exist_ok=True)
     return chroma_dir
 

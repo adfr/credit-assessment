@@ -10,11 +10,16 @@ import os
 from pathlib import Path
 from datetime import datetime
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def get_db_path() -> Path:
     """Get the database file path."""
-    project_root = Path(__file__).parent.parent
-    data_dir = project_root / "data"
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return Path(db_path)
+    data_dir = PROJECT_ROOT / "data"
     data_dir.mkdir(exist_ok=True)
     return data_dir / "credit_risk.db"
 
