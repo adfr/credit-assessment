@@ -62,9 +62,12 @@ class Settings(BaseSettings):
         yaml_cfg = _get_yaml_config()
 
         # Set defaults from YAML config
+        # CML environment variables take priority
+        cml_port = os.environ.get("CDSW_APP_PORT", os.environ.get("CDSW_READONLY_PORT"))
+
         defaults = {
-            "api_host": get_nested(yaml_cfg, "api", "host", default="0.0.0.0"),
-            "api_port": get_nested(yaml_cfg, "api", "port", default=8000),
+            "api_host": os.environ.get("API_HOST", get_nested(yaml_cfg, "api", "host", default="127.0.0.1")),
+            "api_port": int(cml_port) if cml_port else get_nested(yaml_cfg, "api", "port", default=8090),
             "api_debug": get_nested(yaml_cfg, "api", "debug", default=False),
             "database_url": get_nested(yaml_cfg, "database", "url", default=f"sqlite:///{project_root}/data/credit_risk.db"),
             "redis_url": get_nested(yaml_cfg, "redis", "url", default="redis://localhost:6379"),
@@ -100,9 +103,9 @@ class Settings(BaseSettings):
     # Environment
     app_env: str = get_environment()
 
-    # API Configuration
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    # API Configuration - use CML environment variables if available
+    api_host: str = os.environ.get("API_HOST", "127.0.0.1")
+    api_port: int = int(os.environ.get("CDSW_APP_PORT", os.environ.get("CDSW_READONLY_PORT", "8090")))
     api_debug: bool = False
 
     # Project paths
