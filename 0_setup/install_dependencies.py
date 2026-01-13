@@ -96,21 +96,122 @@ def verify_python_packages():
     return all_installed
 
 
+def install_nodejs_nvm():
+    """Install Node.js via nvm (Node Version Manager)."""
+    print("\n" + "="*60)
+    print("[INFO] Installing Node.js via nvm")
+    print("="*60)
+
+    home_dir = Path.home()
+    nvm_dir = home_dir / ".nvm"
+
+    # Install nvm if not present
+    if not nvm_dir.exists():
+        print("[INFO] Installing nvm...")
+        try:
+            result = subprocess.run(
+                ["bash", "-c", "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            print("[OK] nvm installed successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Failed to install nvm: {e.stderr}")
+            return False
+    else:
+        print("[INFO] nvm already installed")
+
+    # Install Node.js LTS using nvm
+    print("[INFO] Installing Node.js LTS via nvm...")
+    nvm_script = f"""
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    nvm install --lts
+    nvm use --lts
+    nvm alias default lts/*
+    """
+
+    try:
+        result = subprocess.run(
+            ["bash", "-c", nvm_script],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print(result.stdout)
+        print("[OK] Node.js LTS installed successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] Failed to install Node.js: {e.stderr}")
+        return False
+
+    # Add nvm to bashrc if not already there
+    bashrc = home_dir / ".bashrc"
+    nvm_init = '''
+# NVM (Node Version Manager)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+'''
+
+    if bashrc.exists():
+        with open(bashrc, "r") as f:
+            bashrc_content = f.read()
+        if "NVM_DIR" not in bashrc_content:
+            with open(bashrc, "a") as f:
+                f.write(nvm_init)
+            print("[OK] Added nvm initialization to ~/.bashrc")
+    else:
+        with open(bashrc, "w") as f:
+            f.write(nvm_init)
+        print("[OK] Created ~/.bashrc with nvm initialization")
+
+    return True
+
+
 def check_nodejs():
-    """Check if Node.js and npm are available."""
+    """Check if Node.js and npm are available, install via nvm if not."""
     print("\n" + "="*60)
     print("[INFO] Checking Node.js and npm")
     print("="*60)
 
+    # First check if node is available directly
     node_ok = run_command(["node", "--version"], "Checking Node.js version")
     npm_ok = run_command(["npm", "--version"], "Checking npm version")
 
-    if not node_ok or not npm_ok:
-        print("\n[WARN] Node.js/npm not found. Frontend will require manual setup.")
-        print("[INFO] Install Node.js from https://nodejs.org/ or use nvm")
-        return False
+    if node_ok and npm_ok:
+        return True
 
-    return True
+    # Check if node is available via nvm
+    nvm_check = """
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    node --version && npm --version
+    """
+
+    try:
+        result = subprocess.run(
+            ["bash", "-c", nvm_check],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("[OK] Node.js available via nvm")
+        print(result.stdout)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # Node.js not found, try to install via nvm
+    print("\n[INFO] Node.js/npm not found. Attempting to install via nvm...")
+    if install_nodejs_nvm():
+        print("[OK] Node.js installed successfully via nvm")
+        print("[INFO] Run 'source ~/.bashrc' or restart your session to use node/npm")
+        return True
+    else:
+        print("\n[WARN] Failed to install Node.js via nvm")
+        print("[INFO] You can manually install Node.js from https://nodejs.org/")
+        return False
 
 
 def create_env_template():
