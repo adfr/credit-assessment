@@ -17,9 +17,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(backend_dir))
 os.chdir(backend_dir)
 
-# Configuration
-API_HOST = os.environ.get("API_HOST", "0.0.0.0")
-API_PORT = int(os.environ.get("API_PORT", "8000"))
+# Configuration - use CML environment variables if available
+API_HOST = os.environ.get("API_HOST", "127.0.0.1")
+API_PORT = int(os.environ.get("CDSW_APP_PORT", os.environ.get("CDSW_READONLY_PORT", "8090")))
 
 print("=" * 50)
 print("Credit Risk Platform - Backend API")
