@@ -1,29 +1,55 @@
-#!/bin/bash
-# Credit Risk Platform - Frontend Startup Script
+#!/usr/bin/env python3
+"""
+Credit Risk Platform - Frontend Startup Script
+"""
 
-echo "=================================================="
-echo "Credit Risk Platform - Frontend"
-echo "=================================================="
-echo ""
+import os
+import sys
+import subprocess
+from pathlib import Path
 
-# Set environment variables
-export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
+# Get project root
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+frontend_dir = PROJECT_ROOT / "6_frontend"
+os.chdir(frontend_dir)
 
-echo "API URL: ${NEXT_PUBLIC_API_URL}"
-echo ""
+# Configuration - use CML environment variables
+API_PORT = os.environ.get("CDSW_APP_PORT", os.environ.get("CDSW_READONLY_PORT", "8090"))
+API_URL = os.environ.get("NEXT_PUBLIC_API_URL", f"http://127.0.0.1:{API_PORT}")
+os.environ["NEXT_PUBLIC_API_URL"] = API_URL
+
+# Frontend port (different from API)
+FRONTEND_PORT = os.environ.get("FRONTEND_PORT", "3000")
+
+print("=" * 50)
+print("Credit Risk Platform - Frontend")
+print("=" * 50)
+print()
+print(f"API URL: {API_URL}")
+print(f"Frontend Port: {FRONTEND_PORT}")
+print()
+
+# Check for nvm and node
+def run_with_nvm(cmd):
+    """Run command with nvm environment."""
+    nvm_script = f'''
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    cd {frontend_dir}
+    {cmd}
+    '''
+    return subprocess.run(["bash", "-c", nvm_script], cwd=frontend_dir)
 
 # Check if node_modules exists
-if [ ! -d "node_modules" ]; then
-    echo "[INFO] Installing dependencies..."
-    npm install
-fi
+if not (frontend_dir / "node_modules").exists():
+    print("[INFO] Installing dependencies...")
+    run_with_nvm("npm install")
 
-# Check if .next exists (build)
-if [ ! -d ".next" ]; then
-    echo "[INFO] Building application..."
-    npm run build
-fi
+# Check if .next exists
+if not (frontend_dir / ".next").exists():
+    print("[INFO] Building application...")
+    run_with_nvm("npm run build")
 
 # Start the server
-echo "[INFO] Starting Next.js server..."
-npm run start
+print("[INFO] Starting Next.js server...")
+run_with_nvm(f"PORT={FRONTEND_PORT} npm run start")
