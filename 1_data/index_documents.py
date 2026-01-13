@@ -15,8 +15,11 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 # Add paths
-sys.path.insert(0, str(Path(__file__).parent.parent / "5_backend"))
+sys.path.insert(0, str(PROJECT_ROOT / "5_backend"))
 
 try:
     import chromadb
@@ -28,12 +31,12 @@ except ImportError:
 
 def get_db_path() -> Path:
     """Get database path."""
-    return Path(__file__).parent.parent / "data" / "credit_risk.db"
+    return PROJECT_ROOT / "data" / "credit_risk.db"
 
 
 def get_chroma_path() -> Path:
     """Get ChromaDB path."""
-    return Path(__file__).parent.parent / "data" / "chroma_company_docs"
+    return PROJECT_ROOT / "data" / "chroma_company_docs"
 
 
 def get_db_connection():

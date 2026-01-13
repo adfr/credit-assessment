@@ -19,11 +19,13 @@ except ImportError as e:
     print("Run: pip install pandas numpy scipy")
     sys.exit(1)
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def get_data_path() -> Path:
     """Get feature data path."""
-    project_root = Path(__file__).parent.parent
-    return project_root / "data" / "features" / "feature_matrix.parquet"
+    return PROJECT_ROOT / "data" / "features" / "feature_matrix.parquet"
 
 
 def load_features() -> pd.DataFrame:
@@ -402,8 +404,7 @@ def main():
     generate_report(df, missing_df, outlier_df, dist_df, corr_df, leakage_suspects)
 
     # Save report
-    project_root = Path(__file__).parent.parent
-    report_dir = project_root / "data" / "reports"
+    report_dir = PROJECT_ROOT / "data" / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # Save analysis results

@@ -19,6 +19,9 @@ except ImportError as e:
     sys.exit(1)
 
 # Industry risk tiers and default rates
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 INDUSTRY_RISK = {
     "technology": {"default_rate": 0.03, "risk_tier": 2},
     "healthcare": {"default_rate": 0.025, "risk_tier": 1},
@@ -35,8 +38,7 @@ INDUSTRY_RISK = {
 
 def get_db_path() -> Path:
     """Get database path."""
-    project_root = Path(__file__).parent.parent
-    return project_root / "data" / "credit_risk.db"
+    return PROJECT_ROOT / "data" / "credit_risk.db"
 
 
 def load_data(conn: sqlite3.Connection) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -362,8 +364,7 @@ def save_features(features: pd.DataFrame, conn: sqlite3.Connection):
     print(f"  - Saved {len(feature_subset)} rows to model_features table")
 
     # Also save full feature matrix to parquet
-    project_root = Path(__file__).parent.parent
-    output_path = project_root / "data" / "features"
+    output_path = PROJECT_ROOT / "data" / "features"
     output_path.mkdir(parents=True, exist_ok=True)
 
     features.to_parquet(output_path / "feature_matrix.parquet", index=False)

@@ -31,13 +31,16 @@ try:
 except ImportError:
     MLFLOW_AVAILABLE = False
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 # Add parent directory to path for config import
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
     from dotenv import load_dotenv
     # Load .env file if it exists (for local development)
-    env_file = Path(__file__).parent.parent / ".env"
+    env_file = PROJECT_ROOT / ".env"
     if env_file.exists():
         load_dotenv(env_file)
     DOTENV_AVAILABLE = True
@@ -47,8 +50,7 @@ except ImportError:
 
 def load_model(model_type: str) -> dict:
     """Load trained model artifact."""
-    project_root = Path(__file__).parent.parent
-    model_path = project_root / "data" / "models" / model_type / f"{model_type}_model_latest.pkl"
+    model_path = PROJECT_ROOT / "data" / "models" / model_type / f"{model_type}_model_latest.pkl"
 
     if not model_path.exists():
         return None
@@ -85,7 +87,7 @@ def setup_mlflow():
     try:
         # Import from 5_backend directory
         import importlib.util
-        backend_config_path = Path(__file__).parent.parent / "5_backend" / "config.py"
+        backend_config_path = PROJECT_ROOT / "5_backend" / "config.py"
         spec = importlib.util.spec_from_file_location("backend_config", backend_config_path)
         backend_config = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(backend_config)
@@ -114,14 +116,13 @@ def setup_mlflow():
 
         if not tracking_uri:
             # Default based on environment
-            project_root = Path(__file__).parent.parent
             if env == "production":
                 # Production default: CML filesystem path
                 tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "/home/cdsw/mlruns")
                 print(f"[INFO] Using production default: {tracking_uri}")
             else:
                 # Local default
-                tracking_uri = str(project_root / "mlruns")
+                tracking_uri = str(PROJECT_ROOT / "mlruns")
                 print(f"[INFO] Using local default: {tracking_uri}")
         else:
             print(f"[INFO] Using MLFLOW_TRACKING_URI from environment: {tracking_uri}")

@@ -21,24 +21,27 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 # Load environment variables from .env file
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(PROJECT_ROOT / ".env")
 
 # Add parent to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(PROJECT_ROOT / "1_data"))
 
 from real_companies import COMPANIES, get_tickers
 
 # Configuration
 API_KEY = os.getenv("FINANCIAL_DATASETS_API_KEY")
 BASE_URL = "https://api.financialdatasets.ai"
-DOCS_DIR = Path(__file__).parent.parent / "data" / "company_docs"
+DOCS_DIR = PROJECT_ROOT / "data" / "company_docs"
 
 
 def get_db_path() -> Path:
     """Get database path."""
-    return Path(__file__).parent.parent / "data" / "credit_risk.db"
+    return PROJECT_ROOT / "data" / "credit_risk.db"
 
 
 def get_db_connection():

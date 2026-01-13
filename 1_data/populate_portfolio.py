@@ -4,6 +4,7 @@ Portfolio Data Population Script
 Populates the loans table with 20 real public companies.
 """
 
+import os
 import sqlite3
 import random
 import uuid
@@ -11,6 +12,9 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 import numpy as np
+
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 
 from real_companies import COMPANIES, INDUSTRY_PARAMS
 
@@ -46,7 +50,7 @@ def pd_to_grade(pd: float) -> str:
 
 def get_db_path() -> Path:
     """Get the database file path."""
-    return Path(__file__).parent.parent / "data" / "credit_risk.db"
+    return PROJECT_ROOT / "data" / "credit_risk.db"
 
 
 def create_tables(conn: sqlite3.Connection):

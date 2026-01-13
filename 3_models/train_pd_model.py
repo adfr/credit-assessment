@@ -42,18 +42,20 @@ except ImportError:
     MLFLOW_AVAILABLE = False
     print("[WARN] MLflow not available. Metrics will not be tracked.")
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def load_config() -> dict:
     """Load PD model configuration."""
-    config_path = Path(__file__).parent / "configs" / "pd_config.yaml"
+    config_path = PROJECT_ROOT / "3_models" / "configs" / "pd_config.yaml"
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
 
 def load_features(config: dict) -> pd.DataFrame:
     """Load feature matrix."""
-    project_root = Path(__file__).parent.parent
-    data_path = project_root / "data" / "features" / "feature_matrix.parquet"
+    data_path = PROJECT_ROOT / "data" / "features" / "feature_matrix.parquet"
 
     if not data_path.exists():
         print(f"\n[ERROR] Feature matrix not found at {data_path}")
@@ -288,8 +290,7 @@ def save_model(
     """Save the trained model."""
     print(f"\n[INFO] Saving {model_name} model...")
 
-    project_root = Path(__file__).parent.parent
-    model_dir = project_root / "data" / "models" / "pd"
+    model_dir = PROJECT_ROOT / "data" / "models" / "pd"
     model_dir.mkdir(parents=True, exist_ok=True)
 
     # Save model

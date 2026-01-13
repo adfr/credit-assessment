@@ -21,6 +21,9 @@ except ImportError as e:
     print("Run: pip install pandas numpy faker")
     sys.exit(1)
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 # Initialize Faker
 fake = Faker()
 Faker.seed(42)
@@ -556,8 +559,7 @@ def main():
     print("=" * 60)
 
     # Output directory
-    project_root = Path(__file__).parent.parent
-    output_dir = project_root / "data" / "synthetic"
+    output_dir = PROJECT_ROOT / "data" / "synthetic"
 
     # Generate data
     companies_df = generate_companies(NUM_COMPANIES)

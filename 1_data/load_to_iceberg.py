@@ -17,12 +17,14 @@ except ImportError:
     print("[ERROR] pandas not installed. Run: pip install pandas")
     sys.exit(1)
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def get_paths() -> tuple[Path, Path]:
     """Get data and database paths."""
-    project_root = Path(__file__).parent.parent
-    data_dir = project_root / "data" / "synthetic"
-    db_path = project_root / "data" / "credit_risk.db"
+    data_dir = PROJECT_ROOT / "data" / "synthetic"
+    db_path = PROJECT_ROOT / "data" / "credit_risk.db"
     return data_dir, db_path
 
 

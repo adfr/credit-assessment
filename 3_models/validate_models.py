@@ -22,11 +22,13 @@ except ImportError as e:
     print(f"[ERROR] Missing required package: {e}")
     sys.exit(1)
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 
 def load_model(model_type: str) -> dict:
     """Load trained model."""
-    project_root = Path(__file__).parent.parent
-    model_path = project_root / "data" / "models" / model_type / f"{model_type}_model_latest.pkl"
+    model_path = PROJECT_ROOT / "data" / "models" / model_type / f"{model_type}_model_latest.pkl"
 
     if not model_path.exists():
         print(f"[ERROR] Model not found: {model_path}")
@@ -38,8 +40,7 @@ def load_model(model_type: str) -> dict:
 
 def load_features() -> pd.DataFrame:
     """Load feature matrix."""
-    project_root = Path(__file__).parent.parent
-    data_path = project_root / "data" / "features" / "feature_matrix.parquet"
+    data_path = PROJECT_ROOT / "data" / "features" / "feature_matrix.parquet"
 
     if not data_path.exists():
         print(f"[ERROR] Feature matrix not found")
@@ -357,8 +358,7 @@ def generate_validation_report(pd_results: dict, lgd_results: dict):
 
 def save_report(pd_results: dict, lgd_results: dict):
     """Save validation report."""
-    project_root = Path(__file__).parent.parent
-    report_dir = project_root / "data" / "reports"
+    report_dir = PROJECT_ROOT / "data" / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # Save PD validation
