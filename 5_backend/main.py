@@ -27,6 +27,7 @@ from services.scoring_service import get_scoring_service
 from services.model_registry_service import get_model_registry, ModelType
 from agents.llm_agent import run_llm_agent
 from api.models import router as models_router
+from api.documents import router as documents_router
 
 
 # Lifespan context manager
@@ -58,6 +59,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(models_router)
+app.include_router(documents_router)
 
 
 # Track API metrics

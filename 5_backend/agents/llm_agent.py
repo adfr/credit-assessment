@@ -18,6 +18,7 @@ from .tools.code_execution_tools import (
     get_portfolio_dataframe,
     calculate_portfolio_var,
     calculate_regulatory_capital,
+    convert_to_serializable,
 )
 from .tools.portfolio_tools import (
     get_portfolio_summary,
@@ -350,6 +351,37 @@ TOOLS = [
             },
             "required": ["loan_id"]
         }
+    },
+    {
+        "name": "execute_simulation_code",
+        "description": """Execute custom Python code for Monte Carlo simulations, scenario analysis, or complex calculations.
+Use this for custom simulations that aren't covered by other tools, such as:
+- Monte Carlo loss simulations with many iterations
+- Custom correlation structures or copula models
+- Multi-period projections or path-dependent scenarios
+- Complex what-if analyses combining multiple factors
+
+The code has access to:
+- get_portfolio_dataframe(): Load loan data as pandas DataFrame (columns: loan_id, company_name, industry, region, outstanding_balance, pd_score, lgd_score, risk_grade, etc.)
+- calculate_portfolio_var(exposures, pds, lgds, correlation=0.15): Calculate VaR using Vasicek model
+- calculate_regulatory_capital(exposures, pds, lgds): Calculate Basel IRB capital
+- numpy (as np), pandas (as pd), scipy.stats (as stats)
+
+Store final results in a variable called 'result' (dict) and use print() for progress output.""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Python code to execute. Must store results in 'result' variable."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of what the simulation does"
+                }
+            },
+            "required": ["code", "description"]
+        }
     }
 ]
 
@@ -661,6 +693,13 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
         loan_id = tool_input.get("loan_id", "")
         return get_loan_risk_metrics(loan_id)
 
+    elif tool_name == "execute_simulation_code":
+        code = tool_input.get("code", "")
+        description = tool_input.get("description", "Custom simulation")
+        result = execute_code(code)
+        result["description"] = description
+        return result
+
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -688,6 +727,14 @@ You have access to these tools:
 12. search_industry_news - Search for news about an industry sector
 13. search_credit_news - Search for general credit market news
 14. calculate_capital_impact - Calculate capital for given risk parameters
+
+**Advanced Simulation Tool:**
+15. execute_simulation_code - Execute custom Python code for Monte Carlo simulations, complex scenario analyses, or custom calculations. Use this when the user asks for:
+   - Monte Carlo simulations (e.g., "run 10,000 simulations of portfolio losses")
+   - Custom loss distributions or tail risk analysis
+   - Multi-factor stress scenarios
+   - Path-dependent or time-series projections
+   - Any analysis requiring custom code beyond the built-in tools
 
 **When to use loan-level tools:**
 - "Show me our largest loans" → list_loans with sort_by=outstanding_balance
@@ -760,22 +807,25 @@ def run_llm_agent(query: str, conversation_history: list = None) -> dict:
             # Execute tool
             result = execute_tool(tool_name, tool_input)
 
+            # Serialize result to ensure JSON compatibility
+            serialized_result = convert_to_serializable(result)
+
             tool_calls.append({
                 "tool": tool_name,
                 "input": tool_input,
-                "output": result
+                "output": serialized_result
             })
 
             reasoning_steps.append({
                 "type": "tool_result",
                 "tool": tool_name,
-                "output": result,
+                "output": serialized_result,
             })
 
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tool_use.id,
-                "content": json.dumps(result, default=str)
+                "content": json.dumps(serialized_result, default=str)
             })
 
         # Add assistant response and tool results to messages

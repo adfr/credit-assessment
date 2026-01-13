@@ -7,7 +7,6 @@ description: |
   - AI analyst workbench with RAG
   - Real-time monitoring and drift detection
 
-
 author: Credit Risk Team
 specification_version: 1
 prototype_version: 1.0.0
@@ -29,15 +28,33 @@ environment_variables:
   APP_ENV:
     default: "production"
     description: "Application environment (local or production)"
-  DATABASE_PATH:
-    default: "data/credit_risk.db"
-    description: "Path to SQLite database"
-  VECTOR_STORE_PATH:
-    default: "data/vector_store"
-    description: "Path to ChromaDB vector store"
   LOG_LEVEL:
     default: "INFO"
-    description: "Logging level"
+    description: "Logging level (DEBUG, INFO, WARNING, ERROR)"
+  DATABASE_URL:
+    default: "sqlite:////home/cdsw/data/credit_risk.db"
+    description: "Database connection URL (SQLite or PostgreSQL)"
+  DATABASE_PATH:
+    default: "/home/cdsw/data/credit_risk.db"
+    description: "Path to SQLite database file"
+  CHROMA_PERSIST_DIRECTORY:
+    default: "/home/cdsw/data/chroma_db"
+    description: "Path to ChromaDB vector store"
+  VECTOR_STORE_PATH:
+    default: "/home/cdsw/data/vector_store"
+    description: "Path to vector store directory"
+  REDIS_URL:
+    default: ""
+    description: "Redis connection URL (optional, for workflow state)"
+  MLFLOW_TRACKING_URI:
+    default: "/home/cdsw/mlruns"
+    description: "MLflow tracking server URI (local path or https URL)"
+  MLFLOW_EXPERIMENT_NAME:
+    default: "credit_risk_production"
+    description: "MLflow experiment name for model tracking"
+  CML_DEPLOYMENT_MODE:
+    default: "local"
+    description: "Deployment mode: local (use model files) or cml (use CML endpoints)"
 
 runtimes:
   - editor: Workbench
@@ -113,6 +130,8 @@ tasks:
     entity_label: pd_model
     description: Probability of Default prediction endpoint
     short_summary: Deploy PD model as REST API
+    script: 4_endpoints/cml_serve_pd.py
+    function: predict
     default_resources:
       cpu: 1
       memory: 2
@@ -125,33 +144,11 @@ tasks:
     entity_label: lgd_model
     description: Loss Given Default prediction endpoint
     short_summary: Deploy LGD model as REST API
+    script: 4_endpoints/cml_serve_lgd.py
+    function: predict
     default_resources:
       cpu: 1
       memory: 2
-    default_replication_policy:
-      type: fixed
-      num_replicas: 1
-
-  - type: create_model
-    name: Risk Engine Endpoint
-    entity_label: risk_engine
-    description: Complete risk scoring engine
-    short_summary: Deploy risk engine as REST API
-    default_resources:
-      cpu: 2
-      memory: 4
-    default_replication_policy:
-      type: fixed
-      num_replicas: 1
-
-  - type: create_model
-    name: Document Processor Endpoint
-    entity_label: document_processor
-    description: Document extraction and processing
-    short_summary: Deploy document processor as REST API
-    default_resources:
-      cpu: 2
-      memory: 4
     default_replication_policy:
       type: fixed
       num_replicas: 1
@@ -161,6 +158,8 @@ tasks:
     entity_label: rag_query
     description: RAG-based policy query endpoint
     short_summary: Deploy RAG query as REST API
+    script: 4_endpoints/serve_rag.py
+    function: query
     default_resources:
       cpu: 2
       memory: 4

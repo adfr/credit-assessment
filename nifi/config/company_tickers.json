@@ -1,0 +1,26 @@
+{
+  "description": "Company tickers and CIK numbers for SEC EDGAR data ingestion",
+  "last_updated": "2024-01-15",
+  "tickers": [
+    {"ticker": "AAPL", "cik": "0000320193", "name": "Apple Inc.", "industry": "technology"},
+    {"ticker": "MSFT", "cik": "0000789019", "name": "Microsoft Corporation", "industry": "technology"},
+    {"ticker": "JNJ", "cik": "0000200406", "name": "Johnson & Johnson", "industry": "healthcare"},
+    {"ticker": "PFE", "cik": "0000078003", "name": "Pfizer Inc.", "industry": "healthcare"},
+    {"ticker": "JPM", "cik": "0000019617", "name": "JPMorgan Chase & Co.", "industry": "financial_services"},
+    {"ticker": "GS", "cik": "0000886982", "name": "Goldman Sachs Group Inc.", "industry": "financial_services"},
+    {"ticker": "XOM", "cik": "0000034088", "name": "Exxon Mobil Corporation", "industry": "energy"},
+    {"ticker": "CVX", "cik": "0000093410", "name": "Chevron Corporation", "industry": "energy"},
+    {"ticker": "WMT", "cik": "0000104169", "name": "Walmart Inc.", "industry": "retail"},
+    {"ticker": "AMZN", "cik": "0001018724", "name": "Amazon.com Inc.", "industry": "retail"},
+    {"ticker": "GE", "cik": "0000040545", "name": "General Electric Company", "industry": "manufacturing"},
+    {"ticker": "MMM", "cik": "0000066740", "name": "3M Company", "industry": "manufacturing"},
+    {"ticker": "DAL", "cik": "0000027904", "name": "Delta Air Lines Inc.", "industry": "transportation"},
+    {"ticker": "UNP", "cik": "0000100885", "name": "Union Pacific Corporation", "industry": "transportation"},
+    {"ticker": "CAT", "cik": "0000018230", "name": "Caterpillar Inc.", "industry": "construction"},
+    {"ticker": "DE", "cik": "0000315189", "name": "Deere & Company", "industry": "construction"},
+    {"ticker": "TSLA", "cik": "0001318605", "name": "Tesla Inc.", "industry": "manufacturing"},
+    {"ticker": "BA", "cik": "0000012927", "name": "The Boeing Company", "industry": "manufacturing"},
+    {"ticker": "KO", "cik": "0000021344", "name": "Coca-Cola Company", "industry": "retail"},
+    {"ticker": "VZ", "cik": "0000732712", "name": "Verizon Communications Inc.", "industry": "technology"}
+  ]
+}

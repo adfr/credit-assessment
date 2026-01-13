@@ -168,9 +168,17 @@ export interface Repayment {
   status: string;
 }
 
+export interface ToolCall {
+  tool: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+}
+
 export interface ChatResponse {
   message: string;
   sources: Array<{ title: string; category: string }>;
+  tool_calls: ToolCall[];
+  model?: string;
   portfolio_context: PortfolioSummary | null;
 }
 

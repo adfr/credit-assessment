@@ -1,0 +1,270 @@
+{
+  "name": "Credit Risk - Financial Data Ingestion",
+  "description": "Fetches 10-K filings from SEC EDGAR and financial data APIs, routes to database and triggers RAG indexing",
+  "version": "1.0.0",
+
+  "parameters": {
+    "sec_edgar_base_url": "https://data.sec.gov",
+    "sec_user_agent": "CreditRiskPlatform/1.0 (contact@yourcompany.com)",
+    "financial_api_base_url": "https://api.financialdatasets.ai",
+    "cml_api_base_url": "${CML_API_URL}",
+    "database_path": "/data/credit_risk.db",
+    "documents_path": "/data/company_docs",
+    "polling_schedule": "0 6 * * *"
+  },
+
+  "process_groups": [
+    {
+      "name": "SEC EDGAR Ingestion",
+      "processors": [
+        {
+          "name": "Generate Company List",
+          "type": "GenerateFlowFile",
+          "config": {
+            "scheduling_strategy": "CRON_DRIVEN",
+            "scheduling_period": "${polling_schedule}",
+            "custom_text": "${company_tickers_json}"
+          },
+          "comments": "Triggers daily at 6 AM with list of company tickers to fetch"
+        },
+        {
+          "name": "Split to Individual Companies",
+          "type": "SplitJson",
+          "config": {
+            "json_path_expression": "$.tickers[*]"
+          }
+        },
+        {
+          "name": "Extract Ticker",
+          "type": "EvaluateJsonPath",
+          "config": {
+            "destination": "flowfile-attribute",
+            "ticker": "$.ticker",
+            "cik": "$.cik",
+            "company_name": "$.name"
+          }
+        },
+        {
+          "name": "Fetch SEC Submissions",
+          "type": "InvokeHTTP",
+          "config": {
+            "http_method": "GET",
+            "remote_url": "${sec_edgar_base_url}/submissions/CIK${cik}.json",
+            "request_header_user_agent": "${sec_user_agent}",
+            "penalize_on_no_retry": "true"
+          }
+        },
+        {
+          "name": "Extract 10-K Filing Info",
+          "type": "EvaluateJsonPath",
+          "config": {
+            "destination": "flowfile-attribute",
+            "accession_number": "$.filings.recent.accessionNumber[0]",
+            "filing_date": "$.filings.recent.filingDate[0]",
+            "primary_document": "$.filings.recent.primaryDocument[0]"
+          }
+        },
+        {
+          "name": "Fetch 10-K Document",
+          "type": "InvokeHTTP",
+          "config": {
+            "http_method": "GET",
+            "remote_url": "https://www.sec.gov/Archives/edgar/data/${cik}/${accession_clean}/${primary_document}",
+            "request_header_user_agent": "${sec_user_agent}"
+          }
+        },
+        {
+          "name": "Parse HTML to Text",
+          "type": "ExecuteScript",
+          "config": {
+            "script_engine": "python",
+            "script_file": "/opt/nifi/scripts/parse_10k_html.py"
+          },
+          "comments": "Extracts text content from HTML, focuses on Risk Factors, Business, MD&A sections"
+        },
+        {
+          "name": "Add Metadata",
+          "type": "UpdateAttribute",
+          "config": {
+            "doc_type": "10-K",
+            "source": "SEC EDGAR",
+            "ingested_at": "${now():format('yyyy-MM-dd HH:mm:ss')}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Financial Datasets API Ingestion",
+      "processors": [
+        {
+          "name": "Generate API Request",
+          "type": "GenerateFlowFile",
+          "config": {
+            "scheduling_strategy": "CRON_DRIVEN",
+            "scheduling_period": "0 7 * * *"
+          },
+          "comments": "Runs 1 hour after SEC EDGAR fetch"
+        },
+        {
+          "name": "Fetch Financial Metrics",
+          "type": "InvokeHTTP",
+          "config": {
+            "http_method": "GET",
+            "remote_url": "${financial_api_base_url}/v1/financials/${ticker}",
+            "request_header_authorization": "Bearer ${FINANCIAL_DATASETS_API_KEY}"
+          }
+        },
+        {
+          "name": "Extract Financial Data",
+          "type": "EvaluateJsonPath",
+          "config": {
+            "destination": "flowfile-content",
+            "revenue": "$.financials.revenue",
+            "net_income": "$.financials.net_income",
+            "total_debt": "$.financials.total_debt",
+            "total_equity": "$.financials.total_equity"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Data Routing & Storage",
+      "processors": [
+        {
+          "name": "Route by Document Type",
+          "type": "RouteOnAttribute",
+          "config": {
+            "10k_filing": "${doc_type:equals('10-K')}",
+            "financial_data": "${doc_type:equals('financials')}",
+            "news": "${doc_type:equals('news')}"
+          }
+        },
+        {
+          "name": "Store to SQLite",
+          "type": "PutSQL",
+          "config": {
+            "jdbc_connection_pool": "SQLiteConnectionPool",
+            "sql_statement": "INSERT OR REPLACE INTO company_documents (ticker, company_name, doc_type, fiscal_year, content, summary, source, downloaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          }
+        },
+        {
+          "name": "Write to File",
+          "type": "PutFile",
+          "config": {
+            "directory": "${documents_path}",
+            "conflict_resolution": "replace",
+            "create_missing_directories": "true"
+          }
+        },
+        {
+          "name": "Trigger RAG Indexing",
+          "type": "InvokeHTTP",
+          "config": {
+            "http_method": "POST",
+            "remote_url": "${cml_api_base_url}/api/documents/index",
+            "content_type": "application/json",
+            "request_body": "{\"ticker\": \"${ticker}\", \"doc_type\": \"${doc_type}\"}"
+          },
+          "comments": "Calls CML API to trigger document indexing for RAG"
+        }
+      ]
+    },
+    {
+      "name": "News Feed Integration",
+      "processors": [
+        {
+          "name": "Generate News Request",
+          "type": "GenerateFlowFile",
+          "config": {
+            "scheduling_strategy": "TIMER_DRIVEN",
+            "scheduling_period": "1 hour"
+          }
+        },
+        {
+          "name": "Fetch Company News",
+          "type": "InvokeHTTP",
+          "config": {
+            "http_method": "POST",
+            "remote_url": "https://google.serper.dev/news",
+            "request_header_x_api_key": "${SERPER_API_KEY}",
+            "request_header_content_type": "application/json",
+            "request_body": "{\"q\": \"${company_name} financial news\", \"num\": 10}"
+          }
+        },
+        {
+          "name": "Extract News Items",
+          "type": "SplitJson",
+          "config": {
+            "json_path_expression": "$.news[*]"
+          }
+        },
+        {
+          "name": "Format News Record",
+          "type": "JoltTransformJSON",
+          "config": {
+            "jolt_specification": "[{\"operation\": \"shift\", \"spec\": {\"title\": \"headline\", \"snippet\": \"summary\", \"link\": \"url\", \"date\": \"published_at\"}}]"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Handling",
+      "processors": [
+        {
+          "name": "Log Failed Requests",
+          "type": "LogAttribute",
+          "config": {
+            "log_level": "ERROR",
+            "attributes_to_log": "ticker, error_message, http_status_code"
+          }
+        },
+        {
+          "name": "Retry Queue",
+          "type": "RetryFlowFile",
+          "config": {
+            "maximum_retries": "3",
+            "penalty_duration": "5 min"
+          }
+        },
+        {
+          "name": "Dead Letter Queue",
+          "type": "PutFile",
+          "config": {
+            "directory": "/data/nifi/failed",
+            "create_missing_directories": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "connections": [
+    {"from": "Generate Company List", "to": "Split to Individual Companies", "relationship": "success"},
+    {"from": "Split to Individual Companies", "to": "Extract Ticker", "relationship": "split"},
+    {"from": "Extract Ticker", "to": "Fetch SEC Submissions", "relationship": "success"},
+    {"from": "Fetch SEC Submissions", "to": "Extract 10-K Filing Info", "relationship": "Response"},
+    {"from": "Fetch SEC Submissions", "to": "Retry Queue", "relationship": "Retry"},
+    {"from": "Fetch SEC Submissions", "to": "Log Failed Requests", "relationship": "No Retry"},
+    {"from": "Extract 10-K Filing Info", "to": "Fetch 10-K Document", "relationship": "matched"},
+    {"from": "Fetch 10-K Document", "to": "Parse HTML to Text", "relationship": "Response"},
+    {"from": "Parse HTML to Text", "to": "Add Metadata", "relationship": "success"},
+    {"from": "Add Metadata", "to": "Route by Document Type", "relationship": "success"},
+    {"from": "Route by Document Type", "to": "Store to SQLite", "relationship": "10k_filing"},
+    {"from": "Store to SQLite", "to": "Write to File", "relationship": "success"},
+    {"from": "Write to File", "to": "Trigger RAG Indexing", "relationship": "success"},
+    {"from": "Retry Queue", "to": "Fetch SEC Submissions", "relationship": "retry"},
+    {"from": "Retry Queue", "to": "Dead Letter Queue", "relationship": "max_retries_exceeded"}
+  ],
+
+  "controller_services": [
+    {
+      "name": "SQLiteConnectionPool",
+      "type": "DBCPConnectionPool",
+      "config": {
+        "database_connection_url": "jdbc:sqlite:${database_path}",
+        "database_driver_class_name": "org.sqlite.JDBC",
+        "max_total_connections": "10"
+      }
+    }
+  ]
+}

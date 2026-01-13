@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { assistantApi, ChatResponse, portfolioApi, PortfolioSummary } from "@/lib/api";
+import { assistantApi, portfolioApi, PortfolioSummary, ToolCall } from "@/lib/api";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: Array<{ title: string; category: string }>;
+  toolCalls?: ToolCall[];
   timestamp: Date;
 }
 
@@ -24,6 +25,75 @@ function formatCurrency(value: number): string {
     return `$${(value / 1000).toFixed(0)}K`;
   }
   return `$${value.toFixed(0)}`;
+}
+
+function formatToolName(name: string): string {
+  return name
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function ToolSteps({ toolCalls }: { toolCalls: ToolCall[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!toolCalls || toolCalls.length === 0) return null;
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+      >
+        <svg
+          className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <span className="font-medium">{toolCalls.length} tool{toolCalls.length > 1 ? "s" : ""} used</span>
+        <div className="flex gap-1">
+          {toolCalls.slice(0, 3).map((tc, idx) => (
+            <span key={idx} className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+              {formatToolName(tc.tool)}
+            </span>
+          ))}
+          {toolCalls.length > 3 && (
+            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+              +{toolCalls.length - 3} more
+            </span>
+          )}
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="mt-2 space-y-2 pl-5 border-l-2 border-gray-200">
+          {toolCalls.map((tc, idx) => (
+            <div key={idx} className="text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 flex items-center justify-center bg-blue-100 text-blue-700 rounded-full font-medium">
+                  {idx + 1}
+                </span>
+                <span className="font-medium text-gray-700">{formatToolName(tc.tool)}</span>
+              </div>
+              {tc.input && Object.keys(tc.input).length > 0 && (
+                <div className="mt-1 ml-7 p-2 bg-gray-50 rounded text-gray-600 font-mono overflow-x-auto">
+                  {Object.entries(tc.input).map(([key, value]) => (
+                    <div key={key}>
+                      <span className="text-gray-400">{key}:</span>{" "}
+                      <span>{typeof value === "object" ? JSON.stringify(value) : String(value)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AssistantPage() {
@@ -65,6 +135,7 @@ export default function AssistantPage() {
         role: "assistant",
         content: response.message,
         sources: response.sources,
+        toolCalls: response.tool_calls,
         timestamp: new Date(),
       };
 
@@ -149,11 +220,16 @@ export default function AssistantPage() {
                     {message.role === "user" ? (
                       <div className="whitespace-pre-wrap">{message.content}</div>
                     ) : (
-                      <div className="prose prose-sm max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-table:my-2 prose-th:bg-gray-200 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-td:border prose-th:border">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
+                      <>
+                        {message.toolCalls && message.toolCalls.length > 0 && (
+                          <ToolSteps toolCalls={message.toolCalls} />
+                        )}
+                        <div className="prose prose-sm max-w-none prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-table:my-2 prose-th:bg-gray-200 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-td:border prose-th:border">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      </>
                     )}
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-gray-200">

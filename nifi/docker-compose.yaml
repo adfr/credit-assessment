@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  nifi:
+    image: apache/nifi:1.24.0
+    container_name: credit-risk-nifi
+    ports:
+      - "8443:8443"  # HTTPS UI
+      - "8080:8080"  # HTTP (if enabled)
+    environment:
+      - NIFI_WEB_HTTPS_PORT=8443
+      - NIFI_WEB_HTTP_PORT=8080
+      - SINGLE_USER_CREDENTIALS_USERNAME=admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=creditrisk123
+      # API Keys (set in .env or pass at runtime)
+      - SERPER_API_KEY=${SERPER_API_KEY}
+      - FINANCIAL_DATASETS_API_KEY=${FINANCIAL_DATASETS_API_KEY}
+      # CML API URL
+      - CML_API_URL=${CML_API_URL:-http://host.docker.internal:8000}
+    volumes:
+      # Flow configuration
+      - ./config:/opt/nifi/nifi-current/conf/templates
+      - ./scripts:/opt/nifi/scripts
+      # Data directories
+      - nifi-data:/opt/nifi/nifi-current/data
+      - nifi-logs:/opt/nifi/nifi-current/logs
+      - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
+      - nifi-state:/opt/nifi/nifi-current/state
+      # Shared data with app
+      - ../data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/nifi-api/system-diagnostics"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: NiFi Registry for version control
+  nifi-registry:
+    image: apache/nifi-registry:1.24.0
+    container_name: credit-risk-nifi-registry
+    ports:
+      - "18080:18080"
+    volumes:
+      - nifi-registry-data:/opt/nifi-registry/nifi-registry-current/data
+    restart: unless-stopped
+
+volumes:
+  nifi-data:
+  nifi-logs:
+  nifi-provenance:
+  nifi-state:
+  nifi-registry-data:

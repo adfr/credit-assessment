@@ -218,6 +218,28 @@ EXECUTION_GLOBALS = {
 }
 
 # Forbidden patterns for security
+def convert_to_serializable(obj):
+    """Convert numpy/pandas types to JSON-serializable Python types."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, pd.DataFrame):
+        return obj.to_dict('records')
+    elif isinstance(obj, pd.Series):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_to_serializable(item) for item in obj]
+    else:
+        return obj
+
+
 FORBIDDEN_PATTERNS = [
     "import os",
     "import sys",
@@ -383,8 +405,8 @@ def execute_code(
             "success": True,
             "output": stdout_output,
             "stderr": stderr_output if stderr_output else None,
-            "result": final_result,
-            "variables": result_vars,
+            "result": convert_to_serializable(final_result),
+            "variables": convert_to_serializable(result_vars),
             "error": None,
         }
 
