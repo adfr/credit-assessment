@@ -6,7 +6,6 @@ Used by NiFi flows to trigger document processing.
 """
 
 import os
-import sys
 import sqlite3
 from pathlib import Path
 from datetime import datetime
@@ -15,10 +14,10 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
-# Add paths for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "1_data"))
-
 router = APIRouter(prefix="/api/documents", tags=["documents"])
+
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 
 
 # ============================================================================
@@ -57,18 +56,18 @@ class DocumentResponse(BaseModel):
 # ============================================================================
 
 def get_db_path() -> Path:
-    """Get database path."""
-    return Path(__file__).parent.parent.parent / "data" / "credit_risk.db"
+    """Get database path from environment or default."""
+    return Path(os.environ.get("DATABASE_PATH", PROJECT_ROOT / "data" / "credit_risk.db"))
 
 
 def get_chroma_path() -> Path:
-    """Get ChromaDB path."""
-    return Path(__file__).parent.parent.parent / "data" / "chroma_company_docs"
+    """Get ChromaDB path from environment or default."""
+    return Path(os.environ.get("CHROMA_PERSIST_DIRECTORY", PROJECT_ROOT / "data" / "chroma_company_docs"))
 
 
 def get_docs_path() -> Path:
     """Get company docs directory."""
-    return Path(__file__).parent.parent.parent / "data" / "company_docs"
+    return Path(os.environ.get("DOCS_PATH", PROJECT_ROOT / "data" / "company_docs"))
 
 
 def get_db_connection():

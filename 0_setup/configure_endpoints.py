@@ -15,6 +15,9 @@ import os
 import json
 from pathlib import Path
 
+# Get project root from environment or current working directory
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
+
 # Check if running in CML
 CDSW_PROJECT_ID = os.environ.get("CDSW_PROJECT_ID")
 CDSW_DOMAIN = os.environ.get("CDSW_DOMAIN")
@@ -105,7 +108,7 @@ def discover_model_endpoints():
 def write_env_file(endpoints: dict, env_file: Path = None):
     """Write discovered endpoints to .env file."""
     if not env_file:
-        env_file = Path(__file__).parent.parent / ".env"
+        env_file = PROJECT_ROOT / ".env"
 
     # Read existing .env
     existing_lines = []
