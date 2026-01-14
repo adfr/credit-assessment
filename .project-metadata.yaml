@@ -55,6 +55,38 @@ environment_variables:
   CML_DEPLOYMENT_MODE:
     default: "local"
     description: "Deployment mode: local (use model files) or cml (use CML endpoints)"
+  SPARK_WAREHOUSE_DIR:
+    default: ""
+    description: "S3/ADLS warehouse path for Iceberg tables (e.g., s3a://bucket/warehouse/credit_risk)"
+    required: false
+  SPARK_ICEBERG_DATABASE:
+    default: "credit_risk"
+    description: "Iceberg database name for storing tables"
+  SPARK_ICEBERG_CATALOG:
+    default: "spark_catalog"
+    description: "Iceberg catalog name (usually spark_catalog for CDP)"
+  DATA_STORAGE_MODE:
+    default: "local"
+    description: "Data storage mode: local (SQLite) or iceberg (Spark/Iceberg tables)"
+  CDE_API_URL:
+    default: ""
+    description: "CDE API URL (e.g., https://xxxxxx.cde-xxxx.cdp.cloudera.com/dex/api/v1)"
+    required: false
+  CDE_VIRTUAL_CLUSTER:
+    default: ""
+    description: "CDE Virtual Cluster name for running Spark jobs"
+    required: false
+  CDE_ACCESS_TOKEN:
+    default: ""
+    description: "CDE access token for API authentication (or use CDP credentials)"
+    required: false
+  CDE_RESOURCE_NAME:
+    default: "credit-risk-jobs"
+    description: "CDE resource name for uploading job files"
+  NEXT_PUBLIC_API_URL:
+    default: ""
+    description: "Backend API URL for frontend (auto-configured if empty, or set manually)"
+    required: false
 
 runtimes:
   - editor: Workbench
@@ -99,8 +131,8 @@ tasks:
 
   - type: run_session
     name: Load Data to Database
-    script: 1_data/load_to_iceberg.py
-    short_summary: Load generated data into database
+    script: 1_data/load_data.py
+    short_summary: Load generated data into database (SQLite or Iceberg)
     cpu: 2
     memory: 4
 
@@ -167,6 +199,14 @@ tasks:
       type: fixed
       num_replicas: 1
 
+  - type: run_session
+    name: Configure Frontend
+    script: 0_setup/configure_frontend.py
+    short_summary: Configure frontend API endpoints
+    long_summary: Sets up frontend environment variables to connect to backend API
+    cpu: 1
+    memory: 2
+
   - type: start_application
     name: Credit Risk API
     subdomain: credit-api
@@ -189,22 +229,18 @@ tasks:
     environment_variables:
       NODE_ENV: production
 
-  - type: create_job
-    name: Daily Model Monitoring
-    entity_label: daily_monitoring
-    script: 7_monitoring/drift_detection.py
-    short_summary: Run daily drift detection
-    long_summary: Check for feature and target drift across all models
-    cpu: 2
-    memory: 4
-    schedule: "0 6 * * *"
+  - type: run_session
+    name: Create CML Jobs
+    script: 0_setup/create_jobs.py
+    short_summary: Create training and monitoring jobs
+    long_summary: Creates manual training jobs and scheduled monitoring/retraining jobs
+    cpu: 1
+    memory: 2
 
-  - type: create_job
-    name: Weekly Model Retraining
-    entity_label: weekly_retrain
-    script: 3_models/train_pd_model.py
-    short_summary: Weekly model retraining
-    long_summary: Retrain models on latest data
-    cpu: 4
-    memory: 8
-    schedule: "0 0 * * 0"
+  - type: run_session
+    name: Deploy CDE Jobs
+    script: 0_setup/deploy_cde.py
+    short_summary: Deploy Spark jobs to CDE (if configured)
+    long_summary: Deploys feature engineering and batch scoring jobs to CDE when Iceberg mode is enabled
+    cpu: 1
+    memory: 2

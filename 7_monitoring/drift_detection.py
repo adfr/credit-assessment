@@ -25,7 +25,7 @@ PSI_THRESHOLD_ALERT = 0.25
 
 def get_paths():
     """Get project paths."""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
     return {
         "db": project_root / "data" / "credit_risk.db",
         "features": project_root / "data" / "features" / "feature_matrix.parquet",

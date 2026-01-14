@@ -3,11 +3,13 @@ RAG Service
 Handles retrieval-augmented generation for policy queries.
 """
 
+import os
 import sys
 from pathlib import Path
 from typing import Optional, List
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "4_endpoints"))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+sys.path.insert(0, str(PROJECT_ROOT / "4_endpoints"))
 
 
 class RAGService:

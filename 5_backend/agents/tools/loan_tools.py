@@ -2,6 +2,7 @@
 Loan-level tools for individual loan analysis
 """
 
+import os
 from typing import Any, Optional
 import sqlite3
 from pathlib import Path
@@ -12,10 +13,12 @@ from .calculation_tools import (
     calculate_risk_grade,
 )
 
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+
 
 def get_db_connection():
     """Get database connection"""
-    db_path = Path(__file__).parent.parent.parent.parent / "data" / "credit_risk.db"
+    db_path = PROJECT_ROOT / "data" / "credit_risk.db"
     return sqlite3.connect(str(db_path))
 
 

@@ -15,7 +15,8 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import base64
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "4_endpoints"))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+sys.path.insert(0, str(PROJECT_ROOT / "4_endpoints"))
 
 
 class DocumentType(str, Enum):
@@ -83,7 +84,7 @@ class DocumentService:
             self.base_path = Path(base_path)
         else:
             # Default path relative to project root
-            self.base_path = Path(__file__).parent.parent.parent / "data" / "documents"
+            self.base_path = PROJECT_ROOT / "data" / "documents"
 
         # Ensure base directory exists
         self.base_path.mkdir(parents=True, exist_ok=True)

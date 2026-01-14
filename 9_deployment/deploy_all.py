@@ -18,10 +18,10 @@ class CMLDeployer:
     """Handles deployment to Cloudera ML."""
 
     def __init__(self, config_dir: Optional[str] = None):
+        self.project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
         if config_dir is None:
-            config_dir = Path(__file__).parent / "configs"
+            config_dir = self.project_root / "9_deployment" / "configs"
         self.config_dir = Path(config_dir)
-        self.project_root = Path(__file__).parent.parent
 
     def load_config(self, config_name: str) -> Dict:
         """Load a YAML configuration file."""

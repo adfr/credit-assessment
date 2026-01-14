@@ -6,6 +6,9 @@ Credit Risk Platform - Frontend Startup Script
 import os
 import sys
 import subprocess
+import shutil
+import socket
+import time
 from pathlib import Path
 
 # Get project root
@@ -14,12 +17,37 @@ frontend_dir = PROJECT_ROOT / "6_frontend"
 os.chdir(frontend_dir)
 
 # Configuration - use CML environment variables
-API_PORT = os.environ.get("CDSW_APP_PORT", os.environ.get("CDSW_READONLY_PORT", "8090"))
-API_URL = os.environ.get("NEXT_PUBLIC_API_URL", f"http://127.0.0.1:{API_PORT}")
+# CML Applications must listen on CDSW_APP_PORT for health checks to pass
+
+def get_api_url():
+    """Get or construct the API URL for the backend."""
+    # First check if explicitly set
+    api_url = os.environ.get("NEXT_PUBLIC_API_URL", "")
+    if api_url:
+        return api_url
+
+    # Try to construct from CML environment
+    cdsw_domain = os.environ.get("CDSW_DOMAIN", "")
+    cdsw_project = os.environ.get("CDSW_PROJECT", "")
+
+    if cdsw_domain:
+        # CML application URL pattern: https://<subdomain>.<domain>
+        # Backend subdomain is 'credit-api' as defined in project-metadata.yaml
+        backend_subdomain = "credit-api"
+        api_url = f"https://{backend_subdomain}.{cdsw_domain}/api"
+        return api_url
+
+    # Fallback for local development
+    return "http://localhost:8000/api"
+
+API_URL = get_api_url()
 os.environ["NEXT_PUBLIC_API_URL"] = API_URL
 
-# Frontend port (different from API)
-FRONTEND_PORT = os.environ.get("FRONTEND_PORT", "3000")
+# Use CDSW_APP_PORT as required by CML - must use env var, not hardcoded
+FRONTEND_PORT = os.environ.get("CDSW_APP_PORT")
+if not FRONTEND_PORT:
+    print("[ERROR] CDSW_APP_PORT not set. This script must run as a CML Application.")
+    sys.exit(1)
 
 print("=" * 50)
 print("Credit Risk Platform - Frontend")
@@ -52,11 +80,44 @@ if not build_id_file.exists():
     # Remove incomplete .next directory if it exists
     next_dir = frontend_dir / ".next"
     if next_dir.exists():
-        import shutil
         shutil.rmtree(next_dir)
         print("[INFO] Removed incomplete .next directory")
     run_with_nvm("npm run build")
 
-# Start the server
-print("[INFO] Starting Next.js server...")
-run_with_nvm(f"PORT={FRONTEND_PORT} npm run start")
+# Copy static files to standalone directory (required for standalone mode)
+standalone_dir = frontend_dir / ".next" / "standalone"
+if standalone_dir.exists():
+    # Copy static files
+    static_src = frontend_dir / ".next" / "static"
+    static_dst = standalone_dir / ".next" / "static"
+    if static_src.exists() and not static_dst.exists():
+        print("[INFO] Copying static files to standalone directory...")
+        shutil.copytree(static_src, static_dst)
+
+    # Copy public folder
+    public_src = frontend_dir / "public"
+    public_dst = standalone_dir / "public"
+    if public_src.exists() and not public_dst.exists():
+        print("[INFO] Copying public files to standalone directory...")
+        shutil.copytree(public_src, public_dst)
+
+# Check if port is available on 127.0.0.1 (where we'll bind)
+def is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('127.0.0.1', int(port)))
+            return False
+        except OSError:
+            return True
+
+if is_port_in_use(FRONTEND_PORT):
+    print(f"[WARN] Port {FRONTEND_PORT} is in use on 127.0.0.1, attempting to free it...")
+    subprocess.run(["bash", "-c", f"fuser -k {FRONTEND_PORT}/tcp 2>/dev/null || true"])
+    subprocess.run(["bash", "-c", "pkill -9 -f 'node.*server.js' 2>/dev/null || true"])
+    time.sleep(2)
+
+# Start the server using standalone mode
+# Bind to 127.0.0.1 as per Cloudera documentation - CML proxy handles external access
+print("[INFO] Starting Next.js server (standalone mode)...")
+print(f"[INFO] Binding to 127.0.0.1:{FRONTEND_PORT}")
+run_with_nvm(f"HOSTNAME=127.0.0.1 PORT={FRONTEND_PORT} node .next/standalone/server.js")

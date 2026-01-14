@@ -3,6 +3,7 @@ Alert Handler
 Manages alerts for model monitoring and system health.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -13,14 +14,15 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+
 
 class AlertHandler:
     """Handles alerting for model monitoring."""
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            project_root = Path(__file__).parent.parent
-            db_path = project_root / "data" / "credit_risk.db"
+            db_path = PROJECT_ROOT / "data" / "credit_risk.db"
         self.db_path = str(db_path)
         self._ensure_table()
 

@@ -42,7 +42,8 @@ _current_environment: str | None = None
 
 def get_config_dir() -> Path:
     """Get the config directory path."""
-    return Path(__file__).parent
+    project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+    return project_root / "config"
 
 
 def get_environment() -> str:

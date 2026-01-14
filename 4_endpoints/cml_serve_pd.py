@@ -46,10 +46,11 @@ MODEL_VERSION = os.environ.get("MODEL_VERSION", "1.0")
 
 # Model paths - CML uses /home/cdsw as project root
 _env_model_path = os.environ.get("PD_MODEL_PATH", "")
+_project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 MODEL_PATHS = [
     Path(_env_model_path) if _env_model_path else None,
     Path("/home/cdsw/data/models/pd/pd_model_latest.pkl"),
-    Path(__file__).parent.parent / "data" / "models" / "pd" / "pd_model_latest.pkl",
+    _project_root / "data" / "models" / "pd" / "pd_model_latest.pkl",
     Path("./data/models/pd/pd_model_latest.pkl"),
 ]
 

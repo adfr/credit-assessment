@@ -26,7 +26,7 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 
 # Add project root to path for config import
-project_root = Path(__file__).parent.parent
+project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 
 # Import from the config package at project root (avoid name collision with this module)
 _config_loader_path = project_root / "config" / "config_loader.py"

@@ -140,6 +140,7 @@ export interface MigrationMatrix {
   period_months: number;
   grades: string[];
   matrix: Record<string, Record<string, number>>;
+  note: string;
 }
 
 export interface VintageData {
@@ -294,20 +295,53 @@ export interface ActiveModelsResponse {
   lgd: ModelInfo | null;
 }
 
+// Monitoring metrics response
+export interface MonitoringMetrics {
+  pd_model: {
+    status: string;
+    model_id?: string | null;
+    model_name?: string;
+    version?: string;
+    framework?: string;
+    trained_at?: string;
+    auc_roc?: number;
+    gini?: number;
+    ks_statistic?: number;
+    brier_score?: number;
+    log_loss?: number;
+  };
+  lgd_model: {
+    status: string;
+    model_id?: string | null;
+    model_name?: string;
+    version?: string;
+    framework?: string;
+    trained_at?: string;
+    mse?: number;
+    rmse?: number;
+    mae?: number;
+    r2?: number;
+  };
+  models_summary: {
+    total_pd_models: number;
+    total_lgd_models: number;
+    active_pd: string | null;
+    active_lgd: string | null;
+  };
+  system: {
+    uptime_seconds: number;
+    total_requests: number;
+    total_errors: number;
+    error_rate_percent: number;
+    avg_latency_ms: number;
+    loans_count: number;
+    total_exposure: number;
+  };
+}
+
 // Monitoring API
 export const monitoringApi = {
-  getMetrics: () =>
-    fetchApi<{
-      pd_model: Record<string, unknown>;
-      lgd_model: Record<string, unknown>;
-      models_summary: {
-        total_pd_models: number;
-        total_lgd_models: number;
-        active_pd: string | null;
-        active_lgd: string | null;
-      };
-      system: Record<string, unknown>;
-    }>("/monitoring/metrics"),
+  getMetrics: () => fetchApi<MonitoringMetrics>("/monitoring/metrics"),
 };
 
 // Models API

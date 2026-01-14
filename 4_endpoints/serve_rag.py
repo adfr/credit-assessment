@@ -38,8 +38,9 @@ def get_chroma_client():
     if not CHROMA_AVAILABLE:
         return None
 
+    project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
     possible_paths = [
-        Path(__file__).parent.parent / "data" / "chroma_db",
+        project_root / "data" / "chroma_db",
         Path("/home/cdsw/data/chroma_db"),
         Path("./data/chroma_db"),
     ]

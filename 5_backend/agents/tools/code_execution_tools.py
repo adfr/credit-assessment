@@ -11,6 +11,7 @@ Example queries this enables:
 """
 
 import io
+import os
 import sys
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
@@ -22,10 +23,12 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+
 
 def get_db_connection():
     """Get database connection"""
-    db_path = Path(__file__).parent.parent.parent.parent / "data" / "credit_risk.db"
+    db_path = PROJECT_ROOT / "data" / "credit_risk.db"
     return sqlite3.connect(str(db_path))
 
 

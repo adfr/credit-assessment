@@ -77,7 +77,7 @@ export default function PortfolioPage() {
     fetchLoans();
   }, [statusFilter, industryFilter, paymentFilter]);
 
-  const industries = [...new Set(loans.map((l) => l.industry))].sort();
+  const industries = Array.from(new Set(loans.map((l) => l.industry))).sort();
 
   return (
     <div className="p-6 space-y-6">

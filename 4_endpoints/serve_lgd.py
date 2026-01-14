@@ -33,8 +33,9 @@ def load_model():
     if _model_artifact is not None:
         return _model_artifact
 
+    project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
     possible_paths = [
-        Path(__file__).parent.parent / "data" / "models" / "lgd" / "lgd_model_latest.pkl",
+        project_root / "data" / "models" / "lgd" / "lgd_model_latest.pkl",
         Path("/home/cdsw/data/models/lgd/lgd_model_latest.pkl"),
         Path("./data/models/lgd/lgd_model_latest.pkl"),
     ]

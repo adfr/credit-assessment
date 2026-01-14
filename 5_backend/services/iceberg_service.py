@@ -3,11 +3,14 @@ Iceberg/Database Service
 Handles database operations for the Credit Risk Platform.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 import json
+
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 
 
 class IcebergService:
@@ -15,8 +18,7 @@ class IcebergService:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            project_root = Path(__file__).parent.parent.parent
-            db_path = project_root / "data" / "credit_risk.db"
+            db_path = PROJECT_ROOT / "data" / "credit_risk.db"
         self.db_path = str(db_path)
 
     def _get_connection(self) -> sqlite3.Connection:

@@ -5,54 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { modelsApi, monitoringApi, ModelInfo } from "@/lib/api";
-
-interface MonitoringData {
-  pd_model: {
-    status: string;
-    model_id?: string;
-    model_name?: string;
-    version?: string;
-    framework?: string;
-    trained_at?: string;
-    auc_roc?: number;
-    gini?: number;
-    ks_statistic?: number;
-    brier_score?: number;
-    log_loss?: number;
-  };
-  lgd_model: {
-    status: string;
-    model_id?: string;
-    model_name?: string;
-    version?: string;
-    framework?: string;
-    trained_at?: string;
-    mse?: number;
-    rmse?: number;
-    mae?: number;
-    r2?: number;
-  };
-  models_summary: {
-    total_pd_models: number;
-    total_lgd_models: number;
-    active_pd: string | null;
-    active_lgd: string | null;
-  };
-  system: {
-    uptime_seconds: number;
-    total_requests: number;
-    total_errors: number;
-    error_rate_percent: number;
-    avg_latency_ms: number;
-    loans_count: number;
-    total_exposure: number;
-  };
-}
+import { modelsApi, monitoringApi, ModelInfo, MonitoringMetrics } from "@/lib/api";
 
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [metrics, setMetrics] = useState<MonitoringData | null>(null);
+  const [metrics, setMetrics] = useState<MonitoringMetrics | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -2,14 +2,17 @@
 Portfolio-level tools for the reasoning agent
 """
 
+import os
 from typing import Any
 import sqlite3
 from pathlib import Path
 
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+
 
 def get_db_connection():
     """Get database connection"""
-    db_path = Path(__file__).parent.parent.parent.parent / "data" / "credit_risk.db"
+    db_path = PROJECT_ROOT / "data" / "credit_risk.db"
     return sqlite3.connect(str(db_path))
 
 

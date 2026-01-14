@@ -3,6 +3,7 @@ Portfolio Service
 Portfolio-level analytics and aggregations.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -13,7 +14,8 @@ from .capital_service import get_capital_service
 
 
 # Database path
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "credit_risk.db"
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+DB_PATH = PROJECT_ROOT / "data" / "credit_risk.db"
 
 
 class PortfolioService:

@@ -24,8 +24,9 @@ def load_model():
         return _model_artifact
 
     # Try different paths for CML and local development
+    project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
     possible_paths = [
-        Path(__file__).parent.parent / "data" / "models" / "pd" / "pd_model_latest.pkl",
+        project_root / "data" / "models" / "pd" / "pd_model_latest.pkl",
         Path("/home/cdsw/data/models/pd/pd_model_latest.pkl"),
         Path("./data/models/pd/pd_model_latest.pkl"),
     ]

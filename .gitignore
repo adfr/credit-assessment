@@ -36,10 +36,12 @@ out/
 *~
 .DS_Store
 
-# Data files (uncomment if you don't want to track)
-# data/*.db
-# data/chroma_db/
-# data/models/
+# Data files
+data/*.db
+data/chroma_db/
+data/models/
+data/synthetic/
+data/reports/
 
 # Logs
 *.log
@@ -61,3 +63,22 @@ mlruns/
 *.tmp
 *.temp
 .cache/
+
+# User/system config files
+.bash_history
+.bashrc
+.Rprofile
+.ssh/
+.config/
+.npm/
+.nvm/
+.local/
+.jupyter/
+
+# Claude Code config
+.claude.json
+.claude.json.backup
+.claude/
+
+# Temporary notebooks
+Untitled*.ipynb

@@ -2,8 +2,11 @@
 RAG tools for policy queries and context retrieval
 """
 
+import os
 from typing import Any, Optional
 from pathlib import Path
+
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 
 
 def get_chroma_client(collection_type: str = "policies"):
@@ -11,9 +14,9 @@ def get_chroma_client(collection_type: str = "policies"):
     try:
         import chromadb
         if collection_type == "company_docs":
-            persist_dir = Path(__file__).parent.parent.parent.parent / "data" / "chroma_company_docs"
+            persist_dir = PROJECT_ROOT / "data" / "chroma_company_docs"
         else:
-            persist_dir = Path(__file__).parent.parent.parent.parent / "data" / "chroma_db"
+            persist_dir = PROJECT_ROOT / "data" / "chroma_db"
         client = chromadb.PersistentClient(path=str(persist_dir))
         return client
     except Exception as e:

@@ -54,8 +54,9 @@ class ModelRegistryService:
     """Service for managing ML model registry."""
 
     def __init__(self):
-        self.db_path = Path(__file__).parent.parent.parent / "data" / "credit_risk.db"
-        self.models_dir = Path(__file__).parent.parent.parent / "data" / "models"
+        project_root = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+        self.db_path = project_root / "data" / "credit_risk.db"
+        self.models_dir = project_root / "data" / "models"
         self._ensure_tables()
         self._register_existing_models()
 
