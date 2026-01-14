@@ -45,9 +45,16 @@ if not (frontend_dir / "node_modules").exists():
     print("[INFO] Installing dependencies...")
     run_with_nvm("npm install")
 
-# Check if .next exists
-if not (frontend_dir / ".next").exists():
-    print("[INFO] Building application...")
+# Check if .next/BUILD_ID exists (means build completed successfully)
+build_id_file = frontend_dir / ".next" / "BUILD_ID"
+if not build_id_file.exists():
+    print("[INFO] Building application (this may take a few minutes)...")
+    # Remove incomplete .next directory if it exists
+    next_dir = frontend_dir / ".next"
+    if next_dir.exists():
+        import shutil
+        shutil.rmtree(next_dir)
+        print("[INFO] Removed incomplete .next directory")
     run_with_nvm("npm run build")
 
 # Start the server
