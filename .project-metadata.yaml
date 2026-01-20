@@ -165,8 +165,8 @@ tasks:
     script: 4_endpoints/cml_serve_pd.py
     function: predict
     default_resources:
-      cpu: 1
-      memory: 2
+      cpu: 2
+      memory: 4
     default_replication_policy:
       type: fixed
       num_replicas: 1
@@ -179,8 +179,8 @@ tasks:
     script: 4_endpoints/cml_serve_lgd.py
     function: predict
     default_resources:
-      cpu: 1
-      memory: 2
+      cpu: 2
+      memory: 4
     default_replication_policy:
       type: fixed
       num_replicas: 1
