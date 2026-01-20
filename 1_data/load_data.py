@@ -34,6 +34,12 @@ def load_to_sqlite():
     """Load data to SQLite database (local mode)."""
     logger.info("Loading data to SQLite (local mode)...")
 
+    # Add 1_data directory to path for relative imports
+    project_root = os.environ.get("PROJECT_ROOT", "/home/cdsw")
+    data_dir = os.path.join(project_root, "1_data")
+    if data_dir not in sys.path:
+        sys.path.insert(0, data_dir)
+
     # Import and run the SQLite loader
     from load_to_iceberg import main as sqlite_main
     return sqlite_main()
@@ -85,6 +91,12 @@ def load_to_iceberg_cml():
         logger.error("SPARK_WAREHOUSE_DIR is required for Iceberg mode")
         logger.error("Set it to your S3/ADLS path, e.g., s3a://bucket/warehouse/credit_risk")
         return 1
+
+    # Add 1_data directory to path for relative imports
+    project_root = os.environ.get("PROJECT_ROOT", "/home/cdsw")
+    data_dir = os.path.join(project_root, "1_data")
+    if data_dir not in sys.path:
+        sys.path.insert(0, data_dir)
 
     # Import and run the Iceberg loader
     from load_to_iceberg_spark import main as iceberg_main
