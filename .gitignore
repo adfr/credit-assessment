@@ -39,10 +39,10 @@ out/
 # Data files
 data/*.db
 data/chroma_db/
-data/models/
+# data/models/ - Commented out: model files needed for CML model deployments
 data/synthetic/
 data/reports/
-data/
+# data/ - Commented out: need data directory for models
 
 # Logs
 *.log
