@@ -42,6 +42,7 @@ data/chroma_db/
 data/models/
 data/synthetic/
 data/reports/
+data/
 
 # Logs
 *.log
