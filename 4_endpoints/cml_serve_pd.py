@@ -24,17 +24,15 @@ import pandas as pd
 
 # CML-specific imports (available in CML environment)
 try:
-    import cml.decorators as cml
+    import cml.models_v1 as models
     CML_AVAILABLE = True
 except ImportError:
     CML_AVAILABLE = False
     # Mock decorator for local development
-    class cml:
+    class models:
         @staticmethod
-        def model(*args, **kwargs):
-            def decorator(func):
-                return func
-            return decorator
+        def cml_model(func):
+            return func
 
 
 # =============================================================================
@@ -181,7 +179,7 @@ def get_decision_recommendation(pd_score: float, rorac: float = None) -> Dict:
 # CML Model Endpoint
 # =============================================================================
 
-@cml.model(name=MODEL_NAME, version=MODEL_VERSION)
+@models.cml_model
 def predict(args: Dict[str, Any]) -> Dict[str, Any]:
     """
     CML Model Endpoint for PD prediction.
