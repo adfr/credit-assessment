@@ -87,16 +87,16 @@ async def track_metrics(request, call_next):
         raise e
 
 
-# CORS middleware - added last so it runs first on incoming requests
-# In CML, frontend and backend run on different subdomains
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for CML subdomains
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+# CORS middleware - DISABLED because CML proxy adds CORS headers automatically
+# Having both causes duplicate headers which some browsers reject
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=False,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=["*"],
+# )
 
 
 # ============================================================================
