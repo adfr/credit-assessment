@@ -60,15 +60,29 @@ def get_cml_client():
 
 
 def find_model_by_name(client, project_id: str, name: str):
-    """Find a model by name in the project."""
+    """Find a model by name in the project (supports partial matching for versioned names)."""
     try:
         models = client.list_models(project_id=project_id)
         for model in models.models:
-            if model.name == name:
+            # Exact match or starts with (for versioned names like "PD Model Endpoint v2.1")
+            if model.name == name or model.name.startswith(name):
                 return model
     except Exception as e:
         logger.error(f"Error listing models: {e}")
     return None
+
+
+def list_all_models(client, project_id: str):
+    """List all models in the project."""
+    try:
+        models = client.list_models(project_id=project_id)
+        logger.info(f"Available models in project:")
+        for model in models.models:
+            logger.info(f"  - {model.name} (ID: {model.id})")
+        return models.models
+    except Exception as e:
+        logger.error(f"Error listing models: {e}")
+        return []
 
 
 def create_model(client, project_id: str, model_config: dict):
@@ -298,6 +312,9 @@ def main():
     # Get CML client
     client = get_cml_client()
 
+    # List all available models first
+    list_all_models(client, project_id)
+
     # Process each model
     results = []
     for config in MODEL_CONFIGS:
@@ -320,5 +337,16 @@ def main():
     return 0 if results else 1
 
 
+def _is_interactive():
+    """Check if running in an interactive environment (IPython/Jupyter)."""
+    try:
+        get_ipython()  # noqa: F821
+        return True
+    except NameError:
+        return False
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    result = main()
+    if not _is_interactive():
+        sys.exit(result)
