@@ -77,12 +77,17 @@ if not FRONTEND_PORT:
     print("[ERROR] CDSW_APP_PORT not set. This script must run as a CML Application.")
     sys.exit(1)
 
+# Force rebuild if FORCE_REBUILD=1 is set
+FORCE_REBUILD = os.environ.get("FORCE_REBUILD", "").lower() in ("1", "true", "yes")
+
 print("=" * 50)
 print("Credit Risk Platform - Frontend")
 print("=" * 50)
 print()
 print(f"API URL: {API_URL}")
 print(f"Frontend Port: {FRONTEND_PORT}")
+if FORCE_REBUILD:
+    print("Force rebuild: enabled")
 print()
 
 # Check for nvm and node
@@ -102,25 +107,50 @@ def run_with_nvm(cmd):
 node_modules_dir = frontend_dir / "node_modules"
 typescript_dir = node_modules_dir / "typescript"
 
-if not node_modules_dir.exists() or not typescript_dir.exists():
-    print("[INFO] Installing dependencies...")
-    run_with_nvm("npm install")
-else:
-    # Even if node_modules exists, run npm install to ensure all deps are up-to-date
-    # This is fast when deps are already installed (npm checks package-lock.json)
-    print("[INFO] Verifying dependencies...")
-    run_with_nvm("npm install --prefer-offline")
+# Always run npm install to ensure dependencies are complete
+# The --prefer-offline flag was causing issues with incomplete installs
+print("[INFO] Installing/verifying dependencies...")
+result = run_with_nvm("npm install")
+if result.returncode != 0:
+    print("[ERROR] npm install failed")
+    sys.exit(1)
 
-# Check if .next/BUILD_ID exists (means build completed successfully)
-build_id_file = frontend_dir / ".next" / "BUILD_ID"
-if not build_id_file.exists():
+# Verify typescript is installed (critical for @/ path alias resolution)
+if not typescript_dir.exists():
+    print("[ERROR] TypeScript not found after npm install. Trying explicit install...")
+    result = run_with_nvm("npm install typescript --save-dev")
+    if result.returncode != 0 or not typescript_dir.exists():
+        print("[ERROR] Failed to install TypeScript. Build will fail.")
+        sys.exit(1)
+    print("[INFO] TypeScript installed successfully")
+
+# Check if standalone build exists (server.js is the key file)
+standalone_server = frontend_dir / ".next" / "standalone" / "server.js"
+if FORCE_REBUILD or not standalone_server.exists():
     print("[INFO] Building application (this may take a few minutes)...")
-    # Remove incomplete .next directory if it exists
+
+    # Clean up to ensure fresh build - stale cache can cause build failures
     next_dir = frontend_dir / ".next"
+    cache_dir = frontend_dir / "node_modules" / ".cache"
+
     if next_dir.exists():
         shutil.rmtree(next_dir)
-        print("[INFO] Removed incomplete .next directory")
-    run_with_nvm("npm run build")
+        print("[INFO] Removed stale .next directory")
+
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+        print("[INFO] Removed node_modules/.cache")
+
+    # Run build and check for success
+    result = run_with_nvm("npm run build")
+
+    # Verify build succeeded by checking for standalone server
+    if not standalone_server.exists():
+        print("[ERROR] Build failed - standalone/server.js not created")
+        print("[ERROR] Check build output above for errors")
+        sys.exit(1)
+
+    print("[INFO] Build completed successfully")
 
 # Copy static files to standalone directory (required for standalone mode)
 standalone_dir = frontend_dir / ".next" / "standalone"
