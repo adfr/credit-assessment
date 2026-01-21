@@ -2,13 +2,15 @@
 """
 CDE Client
 Handles deployment and execution of Spark jobs on Cloudera Data Engineering.
+Uses the official CDE CLI for authentication and API calls.
 """
 
 import os
 import sys
 import json
 import logging
-import requests
+import subprocess
+import shutil
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -16,6 +18,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+
+# Find CDE CLI binary
+CDE_CLI_PATH = shutil.which("cde-cli") or os.path.expanduser("~/.local/bin/cde-cli")
 
 
 class CDEConfig:
@@ -39,210 +44,63 @@ class CDEConfig:
         """Check if CDE is properly configured."""
         has_api = bool(self.api_url and self.virtual_cluster)
         has_auth = bool(self.cdp_access_key_id and self.cdp_private_key)
-        return has_api and has_auth
+        has_cli = os.path.exists(CDE_CLI_PATH)
+        return has_api and has_auth and has_cli
 
     def __repr__(self):
         return f"CDEConfig(api_url={self.api_url}, vc={self.virtual_cluster}, has_credentials={bool(self.cdp_access_key_id)}, configured={self.is_configured})"
 
 
 class CDEClient:
-    """Client for interacting with CDE API."""
+    """Client for interacting with CDE using the official CDE CLI."""
 
     def __init__(self, config: Optional[CDEConfig] = None):
         self.config = config or CDEConfig()
-        self._session: Optional[requests.Session] = None
-        self._access_token: Optional[str] = None
 
-    @property
-    def session(self) -> requests.Session:
-        """Get or create authenticated session."""
-        if self._session is None:
-            self._session = requests.Session()
+    def _run_cde_cli(self, args: List[str], check: bool = True) -> subprocess.CompletedProcess:
+        """Run a CDE CLI command with authentication."""
+        cmd = [
+            CDE_CLI_PATH,
+            "--vcluster-endpoint", self.config.api_url,
+            "--access-key-id", self.config.cdp_access_key_id,
+            "--access-key-secret", self.config.cdp_private_key,
+        ] + args
 
-            # Get token using CDP credentials
-            token = self._get_cde_token()
-            if token:
-                self._session.headers.update({
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                })
-            else:
-                logger.warning("No authentication token available")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
-        return self._session
+        if check and result.returncode != 0:
+            logger.error(f"CDE CLI error: {result.stderr}")
+            raise RuntimeError(f"CDE CLI failed: {result.stderr}")
 
-    def _get_cde_token(self) -> Optional[str]:
-        """Get CDE access token using CDP credentials."""
-        if self._access_token:
-            return self._access_token
+        return result
 
-        # Use CDP credentials to get CDE token
-        if self.config.cdp_access_key_id and self.config.cdp_private_key:
-            token = self._exchange_cdp_credentials_for_token()
-            if token:
-                self._access_token = token
-                return token
-
-        # Fallback: check for credentials file
-        creds = self._load_cdp_credentials_file()
-        if creds:
-            self.config.cdp_access_key_id = creds.get("access_key_id", "")
-            self.config.cdp_private_key = creds.get("private_key", "")
-            token = self._exchange_cdp_credentials_for_token()
-            if token:
-                self._access_token = token
-                return token
-
-        return None
-
-    def _load_cdp_credentials_file(self) -> Optional[Dict]:
-        """Load CDP credentials from ~/.cdp/credentials file."""
-        creds_file = Path.home() / ".cdp" / "credentials"
-        if not creds_file.exists():
-            return None
-
+    def _parse_json_output(self, output: str) -> Any:
+        """Parse JSON output from CDE CLI."""
+        if not output.strip():
+            return []
         try:
-            import configparser
-            config = configparser.ConfigParser()
-            config.read(creds_file)
-            if "default" in config:
-                return {
-                    "access_key_id": config["default"].get("cdp_access_key_id", ""),
-                    "private_key": config["default"].get("cdp_private_key", ""),
-                }
-        except Exception as e:
-            logger.warning(f"Could not read CDP credentials file: {e}")
-
-        return None
-
-    def _exchange_cdp_credentials_for_token(self) -> Optional[str]:
-        """Exchange CDP credentials for a CDE access token."""
-        if not self.config.cdp_access_key_id or not self.config.cdp_private_key:
-            return None
-
-        try:
-            import base64
-            import hashlib
-            import hmac
-            from datetime import datetime, timezone
-
-            # CDE token endpoint (derived from API URL)
-            # Format: https://<service>.cde-<id>.<region>.cloudera.site/dex/api/v1
-            # Token endpoint: https://<service>.cde-<id>.<region>.cloudera.site/gateway/authtkn/knoxtoken/api/v1/token
-            base_url = self.config.api_url.replace("/dex/api/v1", "")
-            token_url = f"{base_url}/gateway/authtkn/knoxtoken/api/v1/token"
-
-            # Create timestamp
-            timestamp = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
-
-            # Create string to sign
-            method = "GET"
-            path = "/gateway/authtkn/knoxtoken/api/v1/token"
-            string_to_sign = f"{method}\n\napplication/json\n{timestamp}\n{path}"
-
-            # Sign with private key (ED25519 or RSA depending on key type)
-            private_key = self.config.cdp_private_key
-
-            # Handle multi-line private key (may be passed as single line with \n)
-            if "\\n" in private_key:
-                private_key = private_key.replace("\\n", "\n")
-
-            # Try to sign using cryptography library
-            try:
-                from cryptography.hazmat.primitives import serialization, hashes
-                from cryptography.hazmat.primitives.asymmetric import ed25519, padding
-                from cryptography.hazmat.backends import default_backend
-
-                # Load the private key
-                key_bytes = private_key.encode('utf-8')
-                try:
-                    # Try ED25519 first (newer CDP keys)
-                    private_key_obj = serialization.load_pem_private_key(
-                        key_bytes, password=None, backend=default_backend()
-                    )
-                    if isinstance(private_key_obj, ed25519.Ed25519PrivateKey):
-                        signature = private_key_obj.sign(string_to_sign.encode('utf-8'))
-                    else:
-                        # RSA key
-                        signature = private_key_obj.sign(
-                            string_to_sign.encode('utf-8'),
-                            padding.PKCS1v15(),
-                            hashes.SHA256()
-                        )
-                except Exception:
-                    # Fallback for raw ED25519 keys without PEM header (base64-encoded seed)
-                    logger.warning("Could not load private key as PEM, trying raw base64 format")
-                    try:
-                        # Decode base64 to get raw 32-byte seed
-                        raw_key_bytes = base64.b64decode(private_key)
-                        if len(raw_key_bytes) == 32:
-                            # It's an Ed25519 seed
-                            private_key_obj = ed25519.Ed25519PrivateKey.from_private_bytes(raw_key_bytes)
-                            signature = private_key_obj.sign(string_to_sign.encode('utf-8'))
-                        else:
-                            logger.error(f"Unexpected key length: {len(raw_key_bytes)} bytes (expected 32)")
-                            return None
-                    except Exception as e:
-                        logger.error(f"Failed to load private key: {e}")
-                        return None
-
-                signature_b64 = base64.standard_b64encode(signature).decode('utf-8')
-
-            except ImportError:
-                logger.error("cryptography library not installed. Run: pip install cryptography")
-                return None
-
-            # Make request to get token
-            headers = {
-                "Content-Type": "application/json",
-                "Date": timestamp,
-                "Authorization": f"ed25519 {self.config.cdp_access_key_id}:{signature_b64}",
-            }
-
-            response = requests.get(token_url, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            token_data = response.json()
-            return token_data.get("access_token")
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to get CDE token: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error exchanging CDP credentials: {e}")
-            return None
-
-    def _request(self, method: str, endpoint: str, **kwargs) -> Dict:
-        """Make API request."""
-        url = f"{self.config.api_url}/{endpoint.lstrip('/')}"
-
-        try:
-            response = self.session.request(method, url, **kwargs)
-            response.raise_for_status()
-            return response.json() if response.content else {}
-        except requests.exceptions.RequestException as e:
-            logger.error(f"CDE API request failed: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Response: {e.response.text}")
-            raise
+            return json.loads(output)
+        except json.JSONDecodeError:
+            return output
 
     # Resource Management
     def create_resource(self, name: str, resource_type: str = "files") -> Dict:
         """Create a CDE resource."""
         logger.info(f"Creating resource: {name}")
-        return self._request("POST", "resources", json={
-            "name": name,
-            "type": resource_type,
-        })
+        result = self._run_cde_cli(["resource", "create", "--name", name, "--type", resource_type], check=False)
+        if result.returncode != 0:
+            if "already exists" in result.stderr.lower():
+                logger.info(f"Resource {name} already exists")
+                return {"name": name, "status": "exists"}
+            raise RuntimeError(f"Failed to create resource: {result.stderr}")
+        return {"name": name, "status": "created"}
 
     def get_resource(self, name: str) -> Optional[Dict]:
         """Get resource by name."""
-        try:
-            return self._request("GET", f"resources/{name}")
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                return None
-            raise
+        result = self._run_cde_cli(["resource", "describe", "--name", name], check=False)
+        if result.returncode != 0:
+            return None
+        return self._parse_json_output(result.stdout)
 
     def ensure_resource(self, name: str) -> Dict:
         """Ensure resource exists, create if not."""
@@ -256,14 +114,12 @@ class CDEClient:
         dest_name = dest_name or file_path.name
         logger.info(f"Uploading {file_path.name} to resource {resource_name}")
 
-        with open(file_path, "rb") as f:
-            # Use multipart form data for file upload
-            files = {"file": (dest_name, f)}
-            url = f"{self.config.api_url}/resources/{resource_name}/{dest_name}"
-
-            response = self.session.put(url, files=files)
-            response.raise_for_status()
-
+        result = self._run_cde_cli([
+            "resource", "upload",
+            "--name", resource_name,
+            "--local-path", str(file_path),
+            "--resource-path", dest_name
+        ])
         return {"status": "uploaded", "file": dest_name}
 
     def upload_directory(self, resource_name: str, dir_path: Path, pattern: str = "*.py") -> List[Dict]:
@@ -289,74 +145,76 @@ class CDEClient:
         """Create a CDE job."""
         logger.info(f"Creating job: {name}")
 
-        job_def = {
-            "name": name,
-            "type": job_type,
-            "mounts": [{"resourceName": resource_name}],
-            "spark": {
-                "file": script,
-                "conf": spark_config or {
-                    "spark.executor.memory": "4g",
-                    "spark.executor.cores": "2",
-                    "spark.executor.instances": "2",
-                },
-            },
+        # Build the CLI command
+        cmd = [
+            "job", "create",
+            "--name", name,
+            "--type", job_type,
+            "--mount-1-resource", resource_name,
+            "--application-file", script,
+        ]
+
+        # Add Spark config
+        conf = spark_config or {
+            "spark.executor.memory": "4g",
+            "spark.executor.cores": "2",
+            "spark.executor.instances": "2",
         }
+        for key, value in conf.items():
+            cmd.extend(["--conf", f"{key}={value}"])
 
+        # Add arguments
         if arguments:
-            job_def["spark"]["args"] = arguments
+            cmd.extend(["--arg", " ".join(arguments)])
 
-        if schedule:
-            job_def["schedule"] = {
-                "enabled": True,
-                "cronExpression": schedule,
-            }
-
-        return self._request("POST", "jobs", json=job_def)
+        result = self._run_cde_cli(cmd, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to create job: {result.stderr}")
+        return {"name": name, "status": "created"}
 
     def get_job(self, name: str) -> Optional[Dict]:
         """Get job by name."""
-        try:
-            return self._request("GET", f"jobs/{name}")
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                return None
-            raise
+        result = self._run_cde_cli(["job", "describe", "--name", name], check=False)
+        if result.returncode != 0:
+            return None
+        return self._parse_json_output(result.stdout)
 
     def delete_job(self, name: str) -> bool:
         """Delete a job."""
-        try:
-            self._request("DELETE", f"jobs/{name}")
-            logger.info(f"Deleted job: {name}")
-            return True
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
+        result = self._run_cde_cli(["job", "delete", "--name", name], check=False)
+        if result.returncode != 0:
+            if "not found" in result.stderr.lower():
                 logger.warning(f"Job not found: {name}")
                 return False
-            raise
+            raise RuntimeError(f"Failed to delete job: {result.stderr}")
+        logger.info(f"Deleted job: {name}")
+        return True
 
     def list_jobs(self) -> List[Dict]:
         """List all jobs."""
-        response = self._request("GET", "jobs")
-        return response.get("jobs", [])
+        result = self._run_cde_cli(["job", "list"])
+        return self._parse_json_output(result.stdout)
 
     def run_job(self, name: str, arguments: Optional[List[str]] = None) -> Dict:
         """Run a job."""
         logger.info(f"Running job: {name}")
-        body = {}
+        cmd = ["job", "run", "--name", name]
         if arguments:
-            body["overrides"] = {"spark": {"args": arguments}}
+            cmd.extend(["--arg", " ".join(arguments)])
 
-        return self._request("POST", f"jobs/{name}/run", json=body)
+        result = self._run_cde_cli(cmd)
+        return self._parse_json_output(result.stdout) if result.stdout.strip() else {"status": "submitted"}
 
     def get_job_runs(self, name: str, limit: int = 10) -> List[Dict]:
         """Get job run history."""
-        response = self._request("GET", f"jobs/{name}/runs", params={"limit": limit})
-        return response.get("runs", [])
+        result = self._run_cde_cli(["run", "list", "--filter", f"job[eq]{name}"])
+        runs = self._parse_json_output(result.stdout)
+        return runs[:limit] if isinstance(runs, list) else []
 
     def get_run_status(self, run_id: str) -> Dict:
         """Get status of a specific run."""
-        return self._request("GET", f"job-runs/{run_id}")
+        result = self._run_cde_cli(["run", "describe", "--id", str(run_id)])
+        return self._parse_json_output(result.stdout)
 
 
 def is_cde_configured() -> bool:
