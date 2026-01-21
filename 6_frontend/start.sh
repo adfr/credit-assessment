@@ -26,15 +26,43 @@ def get_api_url():
     if api_url:
         return api_url
 
-    # Try to construct from CML environment
-    cdsw_domain = os.environ.get("CDSW_DOMAIN", "")
-    cdsw_project = os.environ.get("CDSW_PROJECT", "")
+    # Check if .env.local exists (written by configure_frontend.py)
+    env_local = frontend_dir / ".env.local"
+    if env_local.exists():
+        with open(env_local) as f:
+            for line in f:
+                if line.startswith("NEXT_PUBLIC_API_URL="):
+                    api_url = line.strip().split("=", 1)[1]
+                    if api_url:
+                        print(f"[INFO] Using API URL from .env.local: {api_url}")
+                        return api_url
 
-    if cdsw_domain:
-        # CML application URL pattern: https://<subdomain>.<domain>
-        # Backend subdomain is 'credit-api' as defined in project-metadata.yaml
+    # Try to query CML API for actual backend subdomain
+    cdsw_domain = os.environ.get("CDSW_DOMAIN", "")
+    project_id = os.environ.get("CDSW_PROJECT_ID", "")
+
+    if cdsw_domain and project_id:
+        try:
+            import cmlapi
+            client = cmlapi.default_client()
+            apps = client.list_applications(project_id=project_id)
+
+            # Find the Credit Risk API application
+            api_apps = [app for app in apps.applications if app.subdomain.startswith("credit-api")]
+            if api_apps:
+                # Sort by name to get latest version
+                api_apps.sort(key=lambda a: a.name, reverse=True)
+                subdomain = api_apps[0].subdomain
+                api_url = f"https://{subdomain}.{cdsw_domain}/api"
+                print(f"[INFO] Found backend app via CML API: {api_apps[0].name} -> {api_url}")
+                return api_url
+        except Exception as e:
+            print(f"[WARN] Could not query CML API: {e}")
+
+        # Fallback to simple pattern (may not work if subdomain has suffix)
         backend_subdomain = "credit-api"
         api_url = f"https://{backend_subdomain}.{cdsw_domain}/api"
+        print(f"[WARN] Using default subdomain pattern: {api_url}")
         return api_url
 
     # Fallback for local development

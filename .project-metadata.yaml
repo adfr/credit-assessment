@@ -219,14 +219,6 @@ tasks:
     cpu: 1
     memory: 2
 
-  - type: run_session
-    name: Configure Frontend
-    script: 0_setup/configure_frontend.py
-    short_summary: Configure frontend API endpoints
-    long_summary: Sets up frontend environment variables to connect to backend API
-    cpu: 1
-    memory: 2
-
   - type: start_application
     name: Credit Risk API
     subdomain: credit-api
@@ -237,6 +229,14 @@ tasks:
     memory: 4
     environment_variables:
       PORT: 8000
+
+  - type: run_session
+    name: Configure Frontend
+    script: 0_setup/configure_frontend.py
+    short_summary: Configure frontend API endpoints
+    long_summary: Sets up frontend environment variables to connect to backend API (runs after backend is deployed)
+    cpu: 1
+    memory: 2
 
   - type: start_application
     name: Credit Risk Frontend
