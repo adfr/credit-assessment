@@ -120,9 +120,10 @@ if not typescript_dir.exists():
         lock_file.unlink()
         print("[INFO] Removed package-lock.json for clean install")
 
-# Run npm install
-print("[INFO] Installing dependencies...")
-result = run_with_nvm("npm install")
+# Run npm install with --include=dev to ensure devDependencies are installed
+# (npm skips devDependencies when NODE_ENV=production)
+print("[INFO] Installing dependencies (including devDependencies)...")
+result = run_with_nvm("npm install --include=dev")
 if result.returncode != 0:
     print("[ERROR] npm install failed")
     sys.exit(1)
