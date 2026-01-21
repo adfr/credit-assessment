@@ -50,6 +50,145 @@ INDUSTRIES = {
     "professional_services": {"default_rate": 0.025, "risk_tier": 2, "revenue_range": (500e3, 100e6)},
 }
 
+# Real companies by industry for meaningful online search results
+REAL_COMPANIES = {
+    "technology": [
+        ("Apple Inc.", "AAPL"), ("Microsoft Corporation", "MSFT"), ("Alphabet Inc.", "GOOGL"),
+        ("Amazon.com Inc.", "AMZN"), ("Meta Platforms Inc.", "META"), ("NVIDIA Corporation", "NVDA"),
+        ("Tesla Inc.", "TSLA"), ("Adobe Inc.", "ADBE"), ("Salesforce Inc.", "CRM"),
+        ("Intel Corporation", "INTC"), ("Cisco Systems Inc.", "CSCO"), ("Oracle Corporation", "ORCL"),
+        ("IBM Corporation", "IBM"), ("Qualcomm Inc.", "QCOM"), ("AMD Inc.", "AMD"),
+        ("ServiceNow Inc.", "NOW"), ("Intuit Inc.", "INTU"), ("Snowflake Inc.", "SNOW"),
+        ("Palantir Technologies", "PLTR"), ("CrowdStrike Holdings", "CRWD"), ("Datadog Inc.", "DDOG"),
+        ("Zoom Video Communications", "ZM"), ("Twilio Inc.", "TWLO"), ("Cloudflare Inc.", "NET"),
+        ("MongoDB Inc.", "MDB"), ("Atlassian Corporation", "TEAM"), ("Workday Inc.", "WDAY"),
+        ("Palo Alto Networks", "PANW"), ("Fortinet Inc.", "FTNT"), ("Splunk Inc.", "SPLK"),
+        ("DocuSign Inc.", "DOCU"), ("Okta Inc.", "OKTA"), ("HubSpot Inc.", "HUBS"),
+        ("Block Inc.", "SQ"), ("PayPal Holdings", "PYPL"), ("Shopify Inc.", "SHOP"),
+        ("Autodesk Inc.", "ADSK"), ("Synopsys Inc.", "SNPS"), ("Cadence Design Systems", "CDNS"),
+        ("Arista Networks", "ANET"), ("NetApp Inc.", "NTAP"), ("Western Digital", "WDC"),
+    ],
+    "healthcare": [
+        ("Johnson & Johnson", "JNJ"), ("UnitedHealth Group", "UNH"), ("Pfizer Inc.", "PFE"),
+        ("Eli Lilly and Company", "LLY"), ("AbbVie Inc.", "ABBV"), ("Merck & Co.", "MRK"),
+        ("Thermo Fisher Scientific", "TMO"), ("Abbott Laboratories", "ABT"), ("Danaher Corporation", "DHR"),
+        ("Bristol-Myers Squibb", "BMY"), ("Amgen Inc.", "AMGN"), ("Gilead Sciences", "GILD"),
+        ("Moderna Inc.", "MRNA"), ("Regeneron Pharmaceuticals", "REGN"), ("Vertex Pharmaceuticals", "VRTX"),
+        ("Intuitive Surgical", "ISRG"), ("Boston Scientific", "BSX"), ("Medtronic plc", "MDT"),
+        ("Stryker Corporation", "SYK"), ("Edwards Lifesciences", "EW"), ("Zimmer Biomet", "ZBH"),
+        ("CVS Health Corporation", "CVS"), ("Cigna Group", "CI"), ("Humana Inc.", "HUM"),
+        ("HCA Healthcare", "HCA"), ("Anthem Inc.", "ANTM"), ("Centene Corporation", "CNC"),
+        ("McKesson Corporation", "MCK"), ("Cardinal Health", "CAH"), ("AmerisourceBergen", "ABC"),
+        ("Biogen Inc.", "BIIB"), ("Illumina Inc.", "ILMN"), ("IQVIA Holdings", "IQV"),
+        ("Agilent Technologies", "A"), ("PerkinElmer Inc.", "PKI"), ("Bio-Rad Laboratories", "BIO"),
+    ],
+    "manufacturing": [
+        ("Caterpillar Inc.", "CAT"), ("Deere & Company", "DE"), ("3M Company", "MMM"),
+        ("Honeywell International", "HON"), ("General Electric", "GE"), ("Illinois Tool Works", "ITW"),
+        ("Emerson Electric", "EMR"), ("Parker-Hannifin", "PH"), ("Rockwell Automation", "ROK"),
+        ("Stanley Black & Decker", "SWK"), ("Dover Corporation", "DOV"), ("Fortive Corporation", "FTV"),
+        ("PACCAR Inc.", "PCAR"), ("Cummins Inc.", "CMI"), ("Eaton Corporation", "ETN"),
+        ("Textron Inc.", "TXT"), ("Northrop Grumman", "NOC"), ("Lockheed Martin", "LMT"),
+        ("Raytheon Technologies", "RTX"), ("General Dynamics", "GD"), ("L3Harris Technologies", "LHX"),
+        ("Boeing Company", "BA"), ("Howmet Aerospace", "HWM"), ("TransDigm Group", "TDG"),
+        ("AMETEK Inc.", "AME"), ("Xylem Inc.", "XYL"), ("Graco Inc.", "GGG"),
+        ("Lincoln Electric Holdings", "LECO"), ("Snap-on Incorporated", "SNA"), ("Kennametal Inc.", "KMT"),
+        ("Flowserve Corporation", "FLS"), ("ITT Inc.", "ITT"), ("Roper Technologies", "ROP"),
+    ],
+    "retail": [
+        ("Walmart Inc.", "WMT"), ("Costco Wholesale", "COST"), ("Target Corporation", "TGT"),
+        ("Home Depot", "HD"), ("Lowe's Companies", "LOW"), ("TJX Companies", "TJX"),
+        ("Ross Stores", "ROST"), ("Dollar General", "DG"), ("Dollar Tree", "DLTR"),
+        ("Best Buy Co.", "BBY"), ("AutoZone Inc.", "AZO"), ("O'Reilly Automotive", "ORLY"),
+        ("Advance Auto Parts", "AAP"), ("CarMax Inc.", "KMX"), ("Ulta Beauty", "ULTA"),
+        ("Williams-Sonoma", "WSM"), ("RH (Restoration Hardware)", "RH"), ("Wayfair Inc.", "W"),
+        ("Etsy Inc.", "ETSY"), ("eBay Inc.", "EBAY"), ("Chewy Inc.", "CHWY"),
+        ("Gap Inc.", "GPS"), ("Nordstrom Inc.", "JWN"), ("Kohl's Corporation", "KSS"),
+        ("Macy's Inc.", "M"), ("Dillard's Inc.", "DDS"), ("Burlington Stores", "BURL"),
+        ("Five Below", "FIVE"), ("Bath & Body Works", "BBWI"), ("Dick's Sporting Goods", "DKS"),
+        ("Tractor Supply", "TSCO"), ("PetSmart (Chewy parent)", "CHWY"), ("Foot Locker", "FL"),
+    ],
+    "financial_services": [
+        ("JPMorgan Chase", "JPM"), ("Bank of America", "BAC"), ("Wells Fargo", "WFC"),
+        ("Citigroup Inc.", "C"), ("Goldman Sachs", "GS"), ("Morgan Stanley", "MS"),
+        ("U.S. Bancorp", "USB"), ("PNC Financial", "PNC"), ("Truist Financial", "TFC"),
+        ("Charles Schwab", "SCHW"), ("BlackRock Inc.", "BLK"), ("State Street", "STT"),
+        ("Capital One Financial", "COF"), ("American Express", "AXP"), ("Discover Financial", "DFS"),
+        ("Visa Inc.", "V"), ("Mastercard Inc.", "MA"), ("Fidelity National", "FIS"),
+        ("Fiserv Inc.", "FISV"), ("Global Payments", "GPN"), ("Paychex Inc.", "PAYX"),
+        ("Moody's Corporation", "MCO"), ("S&P Global", "SPGI"), ("MSCI Inc.", "MSCI"),
+        ("CME Group", "CME"), ("Intercontinental Exchange", "ICE"), ("Nasdaq Inc.", "NDAQ"),
+        ("Berkshire Hathaway", "BRK.B"), ("Progressive Corporation", "PGR"), ("Allstate Corporation", "ALL"),
+        ("MetLife Inc.", "MET"), ("Prudential Financial", "PRU"), ("Aflac Inc.", "AFL"),
+        ("Travelers Companies", "TRV"), ("Chubb Limited", "CB"), ("Hartford Financial", "HIG"),
+    ],
+    "energy": [
+        ("Exxon Mobil", "XOM"), ("Chevron Corporation", "CVX"), ("ConocoPhillips", "COP"),
+        ("EOG Resources", "EOG"), ("Schlumberger Limited", "SLB"), ("Pioneer Natural Resources", "PXD"),
+        ("Phillips 66", "PSX"), ("Valero Energy", "VLO"), ("Marathon Petroleum", "MPC"),
+        ("Occidental Petroleum", "OXY"), ("Devon Energy", "DVN"), ("Diamondback Energy", "FANG"),
+        ("Hess Corporation", "HES"), ("Apache Corporation", "APA"), ("Coterra Energy", "CTRA"),
+        ("Baker Hughes", "BKR"), ("Halliburton Company", "HAL"), ("NOV Inc.", "NOV"),
+        ("Kinder Morgan", "KMI"), ("Williams Companies", "WMB"), ("ONEOK Inc.", "OKE"),
+        ("Enbridge Inc.", "ENB"), ("TC Energy", "TRP"), ("Enterprise Products", "EPD"),
+        ("NextEra Energy", "NEE"), ("Duke Energy", "DUK"), ("Southern Company", "SO"),
+        ("Dominion Energy", "D"), ("American Electric Power", "AEP"), ("Xcel Energy", "XEL"),
+        ("Sempra Energy", "SRE"), ("Public Service Enterprise", "PEG"), ("Consolidated Edison", "ED"),
+        ("FirstEnergy Corp.", "FE"), ("Entergy Corporation", "ETR"), ("Evergy Inc.", "EVRG"),
+    ],
+    "construction": [
+        ("D.R. Horton", "DHI"), ("Lennar Corporation", "LEN"), ("PulteGroup Inc.", "PHM"),
+        ("NVR Inc.", "NVR"), ("Toll Brothers", "TOL"), ("Meritage Homes", "MTH"),
+        ("KB Home", "KBH"), ("Taylor Morrison", "TMHC"), ("Century Communities", "CCS"),
+        ("Jacobs Engineering", "J"), ("AECOM", "ACM"), ("Fluor Corporation", "FLR"),
+        ("Quanta Services", "PWR"), ("EMCOR Group", "EME"), ("MasTec Inc.", "MTZ"),
+        ("Granite Construction", "GVA"), ("Martin Marietta", "MLM"), ("Vulcan Materials", "VMC"),
+        ("Eagle Materials", "EXP"), ("Summit Materials", "SUM"), ("U.S. Concrete", "USCR"),
+        ("Armstrong World Industries", "AWI"), ("Owens Corning", "OC"), ("Builders FirstSource", "BLDR"),
+        ("Installed Building Products", "IBP"), ("TopBuild Corp.", "BLD"), ("UFP Industries", "UFPI"),
+        ("Trex Company", "TREX"), ("Simpson Manufacturing", "SSD"), ("Masco Corporation", "MAS"),
+    ],
+    "transportation": [
+        ("Union Pacific", "UNP"), ("CSX Corporation", "CSX"), ("Norfolk Southern", "NSC"),
+        ("Canadian National Railway", "CNI"), ("Canadian Pacific", "CP"), ("Kansas City Southern", "KSU"),
+        ("FedEx Corporation", "FDX"), ("United Parcel Service", "UPS"), ("XPO Logistics", "XPO"),
+        ("J.B. Hunt Transport", "JBHT"), ("Old Dominion Freight", "ODFL"), ("Saia Inc.", "SAIA"),
+        ("Landstar System", "LSTR"), ("Werner Enterprises", "WERN"), ("Knight-Swift Transportation", "KNX"),
+        ("Delta Air Lines", "DAL"), ("United Airlines", "UAL"), ("American Airlines", "AAL"),
+        ("Southwest Airlines", "LUV"), ("Alaska Air Group", "ALK"), ("JetBlue Airways", "JBLU"),
+        ("Uber Technologies", "UBER"), ("Lyft Inc.", "LYFT"), ("DoorDash Inc.", "DASH"),
+        ("Avis Budget Group", "CAR"), ("Hertz Global", "HTZ"), ("U-Haul Holding", "UHAL"),
+        ("Ryder System", "R"), ("GATX Corporation", "GATX"), ("Triton International", "TRTN"),
+        ("Matson Inc.", "MATX"), ("Kirby Corporation", "KEX"), ("Heartland Express", "HTLD"),
+    ],
+    "hospitality": [
+        ("Marriott International", "MAR"), ("Hilton Worldwide", "HLT"), ("Hyatt Hotels", "H"),
+        ("Wyndham Hotels", "WH"), ("Choice Hotels", "CHH"), ("Park Hotels & Resorts", "PK"),
+        ("Host Hotels & Resorts", "HST"), ("Pebblebrook Hotel Trust", "PEB"), ("Sunstone Hotel Investors", "SHO"),
+        ("McDonald's Corporation", "MCD"), ("Starbucks Corporation", "SBUX"), ("Yum! Brands", "YUM"),
+        ("Chipotle Mexican Grill", "CMG"), ("Domino's Pizza", "DPZ"), ("Darden Restaurants", "DRI"),
+        ("Restaurant Brands International", "QSR"), ("Wendy's Company", "WEN"), ("Papa John's", "PZZA"),
+        ("Texas Roadhouse", "TXRH"), ("Cracker Barrel", "CBRL"), ("Bloomin' Brands", "BLMN"),
+        ("Brinker International", "EAT"), ("Dine Brands", "DIN"), ("Jack in the Box", "JACK"),
+        ("Carnival Corporation", "CCL"), ("Royal Caribbean", "RCL"), ("Norwegian Cruise Line", "NCLH"),
+        ("Vail Resorts", "MTN"), ("Six Flags Entertainment", "SIX"), ("Cedar Fair", "FUN"),
+        ("Live Nation Entertainment", "LYV"), ("Madison Square Garden", "MSGS"), ("SeaWorld Entertainment", "SEAS"),
+    ],
+    "professional_services": [
+        ("Accenture plc", "ACN"), ("Cognizant Technology", "CTSH"), ("Infosys Limited", "INFY"),
+        ("Wipro Limited", "WIT"), ("Tata Consultancy", "TCS"), ("HCL Technologies", "HCLTECH"),
+        ("Automatic Data Processing", "ADP"), ("Robert Half International", "RHI"), ("ManpowerGroup", "MAN"),
+        ("Booz Allen Hamilton", "BAH"), ("Leidos Holdings", "LDOS"), ("CACI International", "CACI"),
+        ("Science Applications", "SAIC"), ("Maximus Inc.", "MMS"), ("ICF International", "ICFI"),
+        ("Gartner Inc.", "IT"), ("Verisk Analytics", "VRSK"), ("Equifax Inc.", "EFX"),
+        ("TransUnion", "TRU"), ("Experian plc", "EXPN"), ("Dun & Bradstreet", "DNB"),
+        ("IHS Markit (S&P Global)", "SPGI"), ("FactSet Research", "FDS"), ("RELX plc", "RELX"),
+        ("Thomson Reuters", "TRI"), ("Wolters Kluwer", "WKL"), ("Clarivate plc", "CLVT"),
+        ("CoStar Group", "CSGP"), ("Zillow Group", "Z"), ("Redfin Corporation", "RDFN"),
+        ("RealPage Inc.", "RP"), ("CoreLogic Inc.", "CLGX"), ("FTI Consulting", "FCN"),
+    ],
+}
+
 LOAN_PURPOSES = [
     "working_capital",
     "expansion",
@@ -78,28 +217,43 @@ COUNTRIES = {
 }
 
 
-def generate_company_name() -> str:
-    """Generate a realistic company name."""
-    patterns = [
-        lambda: f"{fake.last_name()} {fake.company_suffix()}",
-        lambda: f"{fake.last_name()} & {fake.last_name()} {fake.company_suffix()}",
-        lambda: f"{fake.word().title()}{fake.word().title()} {fake.company_suffix()}",
-        lambda: fake.company(),
-    ]
-    return random.choice(patterns)()
+def get_real_company(industry: str, used_companies: set) -> tuple[str, str]:
+    """Get a real company name and ticker for the given industry."""
+    available = [c for c in REAL_COMPANIES[industry] if c[0] not in used_companies]
+
+    if available:
+        company = random.choice(available)
+        used_companies.add(company[0])
+        return company
+    else:
+        # If all real companies used, generate a subsidiary/division name
+        base_company = random.choice(REAL_COMPANIES[industry])
+        suffix = random.choice(["Holdings", "Capital", "Ventures", "Partners", "Solutions", "Services", "Group", "International"])
+        division = random.choice(["North", "South", "East", "West", "Global", "Americas", "EMEA", "APAC"])
+        variant = random.choice([
+            f"{base_company[0].split()[0]} {suffix}",
+            f"{base_company[0].split()[0]} {division}",
+            f"{division} {base_company[0].split()[0]}",
+        ])
+        return (variant, f"{base_company[1]}.SUB")
 
 
 def generate_companies(n: int) -> pd.DataFrame:
-    """Generate synthetic company data."""
-    print(f"\n[INFO] Generating {n} companies...")
+    """Generate synthetic company data using real company names."""
+    print(f"\n[INFO] Generating {n} companies using real company names...")
 
     companies = []
+    used_companies = set()  # Track used company names to avoid duplicates
+
     for i in range(n):
         if (i + 1) % 1000 == 0:
             print(f"  - Generated {i + 1} companies")
 
         industry = random.choice(list(INDUSTRIES.keys()))
         industry_info = INDUSTRIES[industry]
+
+        # Get real company name and ticker
+        company_name, ticker = get_real_company(industry, used_companies)
 
         # Generate financial data with realistic correlations
         annual_revenue = np.random.uniform(*industry_info["revenue_range"])
@@ -147,7 +301,8 @@ def generate_companies(n: int) -> pd.DataFrame:
 
         company = {
             "company_id": f"COMP_{i+1:06d}",
-            "company_name": generate_company_name(),
+            "company_name": company_name,
+            "ticker": ticker,
             "industry": industry,
             "years_in_business": years_in_business,
             "employee_count": employee_count,
@@ -164,6 +319,7 @@ def generate_companies(n: int) -> pd.DataFrame:
         }
         companies.append(company)
 
+    print(f"  - Used {len(used_companies)} unique real company names")
     return pd.DataFrame(companies)
 
 

@@ -37,6 +37,7 @@ def create_companies_table(cursor: sqlite3.Cursor):
         CREATE TABLE IF NOT EXISTS companies (
             company_id TEXT PRIMARY KEY,
             company_name TEXT NOT NULL,
+            ticker TEXT,
             industry TEXT NOT NULL,
             years_in_business INTEGER,
             employee_count INTEGER,
@@ -63,6 +64,7 @@ def create_loans_table(cursor: sqlite3.Cursor):
         CREATE TABLE IF NOT EXISTS loans (
             loan_id TEXT PRIMARY KEY,
             company_name TEXT NOT NULL,
+            ticker TEXT,
             industry TEXT NOT NULL,
             region TEXT,
             country TEXT,
