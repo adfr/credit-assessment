@@ -49,16 +49,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware - allow requests from frontend
-# In CML, frontend and backend run on different subdomains
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for CML subdomains
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Include routers
 app.include_router(models_router)
 app.include_router(documents_router)
@@ -77,6 +67,11 @@ api_metrics = {
 async def track_metrics(request, call_next):
     """Track API metrics."""
     import time
+
+    # Skip metrics for CORS preflight requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     start = time.time()
     api_metrics["requests"] += 1
 
@@ -90,6 +85,18 @@ async def track_metrics(request, call_next):
     except Exception as e:
         api_metrics["errors"] += 1
         raise e
+
+
+# CORS middleware - added last so it runs first on incoming requests
+# In CML, frontend and backend run on different subdomains
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for CML subdomains
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 
 # ============================================================================
