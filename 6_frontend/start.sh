@@ -68,10 +68,20 @@ def run_with_nvm(cmd):
     '''
     return subprocess.run(["bash", "-c", nvm_script], cwd=frontend_dir)
 
-# Check if node_modules exists
-if not (frontend_dir / "node_modules").exists():
+# Check if node_modules exists and has required dependencies
+# We check for typescript specifically since it's needed for the build
+# and was a common cause of "Module not found" errors when node_modules is incomplete
+node_modules_dir = frontend_dir / "node_modules"
+typescript_dir = node_modules_dir / "typescript"
+
+if not node_modules_dir.exists() or not typescript_dir.exists():
     print("[INFO] Installing dependencies...")
     run_with_nvm("npm install")
+else:
+    # Even if node_modules exists, run npm install to ensure all deps are up-to-date
+    # This is fast when deps are already installed (npm checks package-lock.json)
+    print("[INFO] Verifying dependencies...")
+    run_with_nvm("npm install --prefer-offline")
 
 # Check if .next/BUILD_ID exists (means build completed successfully)
 build_id_file = frontend_dir / ".next" / "BUILD_ID"
