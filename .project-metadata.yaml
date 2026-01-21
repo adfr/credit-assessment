@@ -76,9 +76,13 @@ environment_variables:
     default: ""
     description: "CDE Virtual Cluster name for running Spark jobs"
     required: false
-  CDE_ACCESS_TOKEN:
+  CDP_ACCESS_KEY_ID:
     default: ""
-    description: "CDE access token for API authentication (or use CDP credentials)"
+    description: "CDP Access Key ID for CDE authentication (from CDP User Management)"
+    required: false
+  CDP_PRIVATE_KEY:
+    default: ""
+    description: "CDP Private Key for CDE authentication (from CDP User Management)"
     required: false
   CDE_RESOURCE_NAME:
     default: "credit-risk-jobs"
