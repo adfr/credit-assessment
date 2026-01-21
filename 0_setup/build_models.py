@@ -60,13 +60,19 @@ def get_cml_client():
 
 
 def find_model_by_name(client, project_id: str, name: str):
-    """Find a model by name in the project (supports partial matching for versioned names)."""
+    """Find a model by name in the project (supports partial matching, prefers latest version)."""
     try:
         models = client.list_models(project_id=project_id)
+        matches = []
         for model in models.models:
             # Exact match or starts with (for versioned names like "PD Model Endpoint v2.1")
             if model.name == name or model.name.startswith(name):
-                return model
+                matches.append(model)
+
+        if matches:
+            # Sort by name descending to get highest version first (v3.1 > v2.1)
+            matches.sort(key=lambda m: m.name, reverse=True)
+            return matches[0]
     except Exception as e:
         logger.error(f"Error listing models: {e}")
     return None
@@ -83,6 +89,41 @@ def list_all_models(client, project_id: str):
     except Exception as e:
         logger.error(f"Error listing models: {e}")
         return []
+
+
+def get_available_runtime(client):
+    """Get an available Python 3.10 runtime from CML."""
+    try:
+        runtimes = client.list_runtimes(search_filter='{"kernel": "Python 3.10"}')
+        if runtimes.runtimes:
+            # Prefer standard workbench runtime
+            for rt in runtimes.runtimes:
+                if 'workbench' in rt.image_identifier.lower() and 'standard' in rt.image_identifier.lower():
+                    logger.info(f"Using runtime: {rt.image_identifier}")
+                    return rt.image_identifier
+            # Fall back to first available Python 3.10 runtime
+            runtime = runtimes.runtimes[0].image_identifier
+            logger.info(f"Using runtime: {runtime}")
+            return runtime
+    except Exception as e:
+        logger.warning(f"Could not list runtimes: {e}")
+
+    # Try without filter
+    try:
+        runtimes = client.list_runtimes()
+        if runtimes.runtimes:
+            for rt in runtimes.runtimes:
+                if 'python3.10' in rt.image_identifier.lower() or 'python3.9' in rt.image_identifier.lower():
+                    logger.info(f"Using runtime: {rt.image_identifier}")
+                    return rt.image_identifier
+            # Just use first available
+            runtime = runtimes.runtimes[0].image_identifier
+            logger.info(f"Using runtime: {runtime}")
+            return runtime
+    except Exception as e:
+        logger.error(f"Could not list runtimes: {e}")
+
+    return None
 
 
 def create_model(client, project_id: str, model_config: dict):
@@ -169,11 +210,14 @@ def build_and_deploy_model(client, project_id: str, model_config: dict):
             logger.info(f"  Script: {model_config['script']}")
             logger.info(f"  Function: {model_config['function']}")
 
-            # Get runtime from environment or use a common default
-            runtime = os.environ.get(
-                "ML_RUNTIME_IDENTIFIER",
-                "docker.repository.cloudera.com/cloudera/cdsw/ml-runtime-workbench-python3.10-standard:2024.02.1-b4"
-            )
+            # Get runtime from environment or discover available one
+            runtime = os.environ.get("ML_RUNTIME_IDENTIFIER")
+            if not runtime:
+                runtime = get_available_runtime(client)
+
+            if not runtime:
+                logger.error("No runtime available. Set ML_RUNTIME_IDENTIFIER environment variable.")
+                return None
 
             build_request = cmlapi.CreateModelBuildRequest(
                 comment=f"Auto-build for {model_name}",
