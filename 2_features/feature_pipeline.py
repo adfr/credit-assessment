@@ -5,7 +5,13 @@ Creates engineered features for PD and LGD models.
 
 Supports two modes:
 - local: Uses SQLite database (default)
-- cde: Triggers CDE Spark job for Iceberg tables
+- cde/iceberg/spark: Triggers CDE Spark job for feature creation from Iceberg tables
+
+NOTE: For Iceberg mode, the workflow is:
+1. Initial data loading to Iceberg: Use CML native Spark (1_data/load_to_iceberg_spark.py)
+2. Feature creation from Iceberg: Use CDE job (this pipeline in cde mode)
+
+CDE is used only for feature engineering, NOT for initial data loading.
 """
 
 import os
@@ -469,7 +475,13 @@ def run_local_mode():
 
 
 def run_cde_mode():
-    """Run feature engineering via CDE Spark job."""
+    """Run feature engineering via CDE Spark job.
+
+    Prerequisites:
+    - Data must already be loaded to Iceberg using CML native Spark
+      (run 1_data/load_to_iceberg_spark.py first)
+    - CDE is used only for feature creation, not initial data loading
+    """
     print("\n[INFO] Running in CDE mode (Spark/Iceberg)")
 
     # Check required CDE environment variables
@@ -494,23 +506,21 @@ def run_cde_mode():
             print("\n[ERROR] SPARK_WAREHOUSE_DIR is required for CDE mode")
             return 1
 
-        # Initialize CDE client
-        client = CDEClient(
-            api_url=cde_api_url,
-            virtual_cluster=cde_virtual_cluster
-        )
+        # Initialize CDE client (uses CDEConfig which reads from env vars)
+        client = CDEClient()
 
-        # Submit feature engineering job
+        # Run feature engineering job (job must already exist in CDE)
         input_path = f"{warehouse_path}/raw"
         output_path = f"{warehouse_path}/features"
+        job_name = "credit-risk-feature-engineering"
 
-        print(f"\n[INFO] Submitting CDE job:")
+        print(f"\n[INFO] Running CDE job: {job_name}")
         print(f"  Input path: {input_path}")
         print(f"  Output path: {output_path}")
 
-        job_run = client.submit_job(
-            job_name="feature-engineering",
-            script="spark_jobs/feature_engineering.py",
+        # Run the existing job with arguments
+        job_run = client.run_job(
+            name=job_name,
             arguments=[
                 "--input-path", input_path,
                 "--output-path", output_path,
@@ -518,13 +528,21 @@ def run_cde_mode():
             ]
         )
 
-        print(f"\n[INFO] Job submitted: {job_run.get('id', 'unknown')}")
-        print("[INFO] Monitor job status in CDE UI or use: cde job runs describe")
+        run_id = job_run.get('id', 'unknown')
+        print(f"\n[INFO] Job run submitted: {run_id}")
+        print("[INFO] Monitor job status in CDE UI or use: cde run describe")
 
         # Optionally wait for completion
         if os.environ.get("CDE_WAIT_FOR_COMPLETION", "false").lower() == "true":
+            import time
             print("\n[INFO] Waiting for job completion...")
-            status = client.wait_for_job(job_run["id"])
+            while True:
+                status_info = client.get_run_status(run_id)
+                status = status_info.get("status", "unknown")
+                if status in ["succeeded", "failed", "killed"]:
+                    break
+                print(f"  Status: {status}...")
+                time.sleep(10)
             if status != "succeeded":
                 print(f"\n[ERROR] CDE job failed with status: {status}")
                 return 1
