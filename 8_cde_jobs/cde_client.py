@@ -170,9 +170,21 @@ class CDEClient:
                             hashes.SHA256()
                         )
                 except Exception:
-                    # Fallback for raw ED25519 keys without PEM header
-                    logger.warning("Could not load private key, trying alternative format")
-                    return None
+                    # Fallback for raw ED25519 keys without PEM header (base64-encoded seed)
+                    logger.warning("Could not load private key as PEM, trying raw base64 format")
+                    try:
+                        # Decode base64 to get raw 32-byte seed
+                        raw_key_bytes = base64.b64decode(private_key)
+                        if len(raw_key_bytes) == 32:
+                            # It's an Ed25519 seed
+                            private_key_obj = ed25519.Ed25519PrivateKey.from_private_bytes(raw_key_bytes)
+                            signature = private_key_obj.sign(string_to_sign.encode('utf-8'))
+                        else:
+                            logger.error(f"Unexpected key length: {len(raw_key_bytes)} bytes (expected 32)")
+                            return None
+                    except Exception as e:
+                        logger.error(f"Failed to load private key: {e}")
+                        return None
 
                 signature_b64 = base64.standard_b64encode(signature).decode('utf-8')
 
