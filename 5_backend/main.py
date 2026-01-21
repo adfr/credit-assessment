@@ -49,15 +49,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware - disabled when running on Cloudera AI (proxy handles CORS)
-# Uncomment for local development if needed
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
+# CORS middleware - allow requests from frontend
+# In CML, frontend and backend run on different subdomains
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for CML subdomains
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routers
 app.include_router(models_router)

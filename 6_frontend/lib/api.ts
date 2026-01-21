@@ -1,4 +1,32 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+// Dynamically determine API URL based on current location
+function getApiBaseUrl(): string {
+  // Server-side: use environment variable
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  }
+
+  // Client-side: derive backend URL from current hostname
+  const hostname = window.location.hostname;
+
+  // Local development
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "http://localhost:8000/api";
+  }
+
+  // CML environment: replace frontend subdomain with backend subdomain
+  // Frontend: credit-risk-dashboard.ml-xxx.apps.cloudera.com
+  // Backend:  credit-api.ml-xxx.apps.cloudera.com
+  const parts = hostname.split(".");
+  if (parts.length > 1) {
+    parts[0] = "credit-api";
+    return `https://${parts.join(".")}/api`;
+  }
+
+  // Fallback
+  return "http://localhost:8000/api";
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
