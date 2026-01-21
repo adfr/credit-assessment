@@ -25,12 +25,30 @@ def get_backend_api_url() -> str:
         logger.info(f"Using configured NEXT_PUBLIC_API_URL: {api_url}")
         return api_url
 
-    # Try to construct from CML environment
+    # Try to get actual URL from CML API
     cdsw_domain = os.environ.get("CDSW_DOMAIN", "")
+    project_id = os.environ.get("CDSW_PROJECT_ID", "")
 
-    if cdsw_domain:
-        # CML application URL pattern
-        backend_subdomain = "credit-api"  # From project-metadata.yaml
+    if cdsw_domain and project_id:
+        try:
+            import cmlapi
+            client = cmlapi.default_client()
+            apps = client.list_applications(project_id=project_id)
+
+            # Find the Credit Risk API application (prefer latest version)
+            api_apps = [app for app in apps.applications if app.subdomain.startswith("credit-api")]
+            if api_apps:
+                # Sort by name to get latest version
+                api_apps.sort(key=lambda a: a.name, reverse=True)
+                subdomain = api_apps[0].subdomain
+                api_url = f"https://{subdomain}.{cdsw_domain}/api"
+                logger.info(f"Found API application: {api_apps[0].name} -> {api_url}")
+                return api_url
+        except Exception as e:
+            logger.warning(f"Could not query CML API: {e}")
+
+        # Fallback to simple pattern (may not work)
+        backend_subdomain = "credit-api"
         api_url = f"https://{backend_subdomain}.{cdsw_domain}/api"
         logger.info(f"Constructed API URL from CML environment: {api_url}")
         return api_url
