@@ -513,7 +513,7 @@ def main():
         print(f"  CDP Access Key: {'***' + config.cdp_access_key_id[-4:] if config.cdp_access_key_id else '(not set)'}")
         print(f"  CDP Private Key: {'configured' if config.cdp_private_key else '(not set)'}")
         print(f"  Resource Name: {config.resource_name}")
-        print(f"  Warehouse Dir: {config.warehouse_dir or '(not set)'")
+        print(f"  Warehouse Dir: {config.warehouse_dir or '(not set)'}")
 
     elif command == "deploy":
         result = deploy_spark_jobs()
