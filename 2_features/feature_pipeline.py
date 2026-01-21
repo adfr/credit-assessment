@@ -2,6 +2,10 @@
 """
 Feature Engineering Pipeline
 Creates engineered features for PD and LGD models.
+
+Supports two modes:
+- local: Uses SQLite database (default)
+- cde: Triggers CDE Spark job for Iceberg tables
 """
 
 import os
@@ -17,6 +21,9 @@ except ImportError as e:
     print(f"[ERROR] Missing required package: {e}")
     print("Run: pip install pandas numpy")
     sys.exit(1)
+
+# Determine storage mode from environment
+DATA_STORAGE_MODE = os.environ.get("DATA_STORAGE_MODE", "local").lower()
 
 # Industry risk tiers and default rates
 # Get project root from environment or current working directory
@@ -166,14 +173,11 @@ def calculate_behavioral_features(payments: pd.DataFrame, loans: pd.DataFrame) -
         payment_agg["total_paid"] / payment_agg["total_scheduled"].replace(0, np.nan)
     ).clip(0, 1)
 
-    # Count DPD buckets
-    dpd_counts = payments.groupby("loan_id").apply(
-        lambda x: pd.Series({
-            "count_30dpd": (x["days_past_due"] >= 30).sum(),
-            "count_60dpd": (x["days_past_due"] >= 60).sum(),
-            "count_90dpd": (x["days_past_due"] >= 90).sum(),
-        }),
-        include_groups=False
+    # Count DPD buckets using aggregation (compatible with pandas 2.1.x)
+    dpd_counts = payments.groupby("loan_id").agg(
+        count_30dpd=("days_past_due", lambda x: (x >= 30).sum()),
+        count_60dpd=("days_past_due", lambda x: (x >= 60).sum()),
+        count_90dpd=("days_past_due", lambda x: (x >= 90).sum()),
     ).reset_index()
 
     payment_agg = payment_agg.merge(dpd_counts, on="loan_id", how="left")
@@ -412,16 +416,14 @@ def print_feature_summary(features: pd.DataFrame):
             print(f"    Min: {stats['min']:.4f}, Max: {stats['max']:.4f}")
 
 
-def main():
-    """Main function to run feature engineering pipeline."""
-    print("\n" + "=" * 60)
-    print("Credit Risk Platform - Feature Engineering")
-    print("=" * 60)
+def run_local_mode():
+    """Run feature engineering in local mode using SQLite."""
+    print("\n[INFO] Running in LOCAL mode (SQLite)")
 
     db_path = get_db_path()
     if not db_path.exists():
         print(f"\n[ERROR] Database not found at {db_path}")
-        print("Please run 1_data/load_to_iceberg.py first")
+        print("Please run 1_data/load_data.py first")
         return 1
 
     conn = sqlite3.connect(str(db_path))
@@ -466,5 +468,110 @@ def main():
     return 0
 
 
+def run_cde_mode():
+    """Run feature engineering via CDE Spark job."""
+    print("\n[INFO] Running in CDE mode (Spark/Iceberg)")
+
+    # Check required CDE environment variables
+    cde_api_url = os.environ.get("CDE_API_URL")
+    cde_virtual_cluster = os.environ.get("CDE_VIRTUAL_CLUSTER")
+
+    if not cde_api_url or not cde_virtual_cluster:
+        print("\n[ERROR] CDE mode requires the following environment variables:")
+        print("  - CDE_API_URL")
+        print("  - CDE_VIRTUAL_CLUSTER")
+        print("\nPlease configure these or use DATA_STORAGE_MODE=local")
+        return 1
+
+    try:
+        # Import CDE client
+        sys.path.insert(0, str(PROJECT_ROOT / "8_cde_jobs"))
+        from cde_client import CDEClient
+
+        # Get warehouse path
+        warehouse_path = os.environ.get("SPARK_WAREHOUSE_DIR")
+        if not warehouse_path:
+            print("\n[ERROR] SPARK_WAREHOUSE_DIR is required for CDE mode")
+            return 1
+
+        # Initialize CDE client
+        client = CDEClient(
+            api_url=cde_api_url,
+            virtual_cluster=cde_virtual_cluster
+        )
+
+        # Submit feature engineering job
+        input_path = f"{warehouse_path}/raw"
+        output_path = f"{warehouse_path}/features"
+
+        print(f"\n[INFO] Submitting CDE job:")
+        print(f"  Input path: {input_path}")
+        print(f"  Output path: {output_path}")
+
+        job_run = client.submit_job(
+            job_name="feature-engineering",
+            script="spark_jobs/feature_engineering.py",
+            arguments=[
+                "--input-path", input_path,
+                "--output-path", output_path,
+                "--date", datetime.now().strftime("%Y-%m-%d")
+            ]
+        )
+
+        print(f"\n[INFO] Job submitted: {job_run.get('id', 'unknown')}")
+        print("[INFO] Monitor job status in CDE UI or use: cde job runs describe")
+
+        # Optionally wait for completion
+        if os.environ.get("CDE_WAIT_FOR_COMPLETION", "false").lower() == "true":
+            print("\n[INFO] Waiting for job completion...")
+            status = client.wait_for_job(job_run["id"])
+            if status != "succeeded":
+                print(f"\n[ERROR] CDE job failed with status: {status}")
+                return 1
+
+        print("\n" + "=" * 60)
+        print("[SUCCESS] CDE feature engineering job submitted!")
+        print("=" * 60)
+
+    except ImportError:
+        print("\n[ERROR] CDE client not found. Check 8_cde_jobs/cde_client.py")
+        return 1
+    except Exception as e:
+        print(f"\n[ERROR] CDE job submission failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+    return 0
+
+
+def main():
+    """Main function to run feature engineering pipeline."""
+    print("\n" + "=" * 60)
+    print("Credit Risk Platform - Feature Engineering")
+    print("=" * 60)
+    print(f"\n[INFO] Data storage mode: {DATA_STORAGE_MODE}")
+
+    if DATA_STORAGE_MODE == "local":
+        return run_local_mode()
+    elif DATA_STORAGE_MODE in ("cde", "iceberg", "spark"):
+        return run_cde_mode()
+    else:
+        print(f"\n[ERROR] Unknown DATA_STORAGE_MODE: {DATA_STORAGE_MODE}")
+        print("Supported modes: local, cde, iceberg, spark")
+        return 1
+
+
+def _is_interactive():
+    """Check if running in an interactive environment (IPython/Jupyter)."""
+    try:
+        get_ipython()  # noqa: F821
+        return True
+    except NameError:
+        return False
+
+
 if __name__ == "__main__":
-    main()
+    result = main()
+    if not _is_interactive():
+        sys.exit(result)

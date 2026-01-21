@@ -137,6 +137,18 @@ tasks:
     memory: 4
 
   - type: run_session
+    name: Feature Engineering
+    script: 2_features/feature_pipeline.py
+    short_summary: Generate features for ML models (local or CDE mode)
+    long_summary: |
+      Creates engineered features for PD and LGD models.
+      Supports two modes controlled by DATA_STORAGE_MODE environment variable:
+      - local (default): Uses SQLite database
+      - cde/iceberg: Triggers CDE Spark job for Iceberg tables
+    cpu: 2
+    memory: 4
+
+  - type: run_session
     name: Train PD Model
     script: 3_models/train_pd_model.py
     short_summary: Train Probability of Default model
@@ -198,6 +210,14 @@ tasks:
     default_replication_policy:
       type: fixed
       num_replicas: 1
+
+  - type: run_session
+    name: Build and Deploy Models
+    script: 0_setup/build_models.py
+    short_summary: Build and deploy model endpoints
+    long_summary: Triggers model builds with proper file paths and deploys them as REST APIs
+    cpu: 1
+    memory: 2
 
   - type: run_session
     name: Configure Frontend
