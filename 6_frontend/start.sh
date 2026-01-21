@@ -107,22 +107,32 @@ def run_with_nvm(cmd):
 node_modules_dir = frontend_dir / "node_modules"
 typescript_dir = node_modules_dir / "typescript"
 
-# Always run npm install to ensure dependencies are complete
-# The --prefer-offline flag was causing issues with incomplete installs
-print("[INFO] Installing/verifying dependencies...")
+# Check if typescript exists - if not, we need a clean install
+if not typescript_dir.exists():
+    print("[INFO] TypeScript missing - performing clean install...")
+    # Remove potentially corrupted node_modules
+    if node_modules_dir.exists():
+        shutil.rmtree(node_modules_dir)
+        print("[INFO] Removed node_modules for clean install")
+    # Remove package-lock to force fresh resolution
+    lock_file = frontend_dir / "package-lock.json"
+    if lock_file.exists():
+        lock_file.unlink()
+        print("[INFO] Removed package-lock.json for clean install")
+
+# Run npm install
+print("[INFO] Installing dependencies...")
 result = run_with_nvm("npm install")
 if result.returncode != 0:
     print("[ERROR] npm install failed")
     sys.exit(1)
 
-# Verify typescript is installed (critical for @/ path alias resolution)
+# Final verification that typescript is installed
 if not typescript_dir.exists():
-    print("[ERROR] TypeScript not found after npm install. Trying explicit install...")
-    result = run_with_nvm("npm install typescript --save-dev")
-    if result.returncode != 0 or not typescript_dir.exists():
-        print("[ERROR] Failed to install TypeScript. Build will fail.")
-        sys.exit(1)
-    print("[INFO] TypeScript installed successfully")
+    print("[ERROR] TypeScript still not installed after clean npm install.")
+    print("[ERROR] Check package.json devDependencies includes typescript.")
+    sys.exit(1)
+print("[INFO] Dependencies verified (TypeScript found)")
 
 # Check if standalone build exists (server.js is the key file)
 standalone_server = frontend_dir / ".next" / "standalone" / "server.js"
