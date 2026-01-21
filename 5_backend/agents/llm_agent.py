@@ -28,6 +28,7 @@ from .tools.portfolio_tools import (
 from .tools.rag_tools import query_policies, query_company_documents
 from .tools.news_tools import search_company_news, search_industry_news, search_credit_news
 from .tools.loan_tools import get_loan_details, get_loan_risk_metrics, list_loans
+from services.scoring_service import get_scoring_service
 
 
 # Initialize Anthropic client
@@ -350,6 +351,151 @@ TOOLS = [
                 }
             },
             "required": ["loan_id"]
+        }
+    },
+    {
+        "name": "score_company_pd",
+        "description": "Score a company for Probability of Default (PD) using the trained ML model. Takes company financials and returns PD score, risk grade, and decision recommendation. Use this when asked to rate a company, assess creditworthiness, or predict default probability.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string",
+                    "description": "Name of the company being scored"
+                },
+                "annual_revenue": {
+                    "type": "number",
+                    "description": "Annual revenue in dollars"
+                },
+                "net_income": {
+                    "type": "number",
+                    "description": "Net income in dollars (can be negative)"
+                },
+                "total_assets": {
+                    "type": "number",
+                    "description": "Total assets in dollars"
+                },
+                "total_liabilities": {
+                    "type": "number",
+                    "description": "Total liabilities in dollars"
+                },
+                "industry": {
+                    "type": "string",
+                    "description": "Industry sector",
+                    "enum": ["healthcare", "energy", "transportation", "manufacturing", "financial_services", "retail", "construction", "technology"]
+                },
+                "years_in_business": {
+                    "type": "integer",
+                    "description": "Years the company has been operating. Default 5."
+                },
+                "credit_score": {
+                    "type": "number",
+                    "description": "Credit score (300-850). Default 700."
+                },
+                "requested_loan_amount": {
+                    "type": "number",
+                    "description": "Loan amount being requested. Default $1,000,000."
+                }
+            },
+            "required": ["company_name", "annual_revenue", "total_assets", "total_liabilities", "industry"]
+        }
+    },
+    {
+        "name": "score_loan_lgd",
+        "description": "Score a loan for Loss Given Default (LGD) using the trained ML model. Takes collateral and loan details, returns expected loss severity if default occurs. Use this to assess recovery expectations.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "loan_amount": {
+                    "type": "number",
+                    "description": "Loan principal amount in dollars"
+                },
+                "collateral_type": {
+                    "type": "string",
+                    "description": "Type of collateral securing the loan",
+                    "enum": ["real_estate", "equipment", "inventory", "receivables", "securities", "cash", "unsecured"]
+                },
+                "collateral_value": {
+                    "type": "number",
+                    "description": "Estimated value of collateral in dollars. Required if collateral_type is not 'unsecured'."
+                },
+                "seniority": {
+                    "type": "string",
+                    "description": "Loan seniority in capital structure",
+                    "enum": ["senior_secured", "senior_unsecured", "subordinated"],
+                    "default": "senior_secured"
+                },
+                "term_months": {
+                    "type": "integer",
+                    "description": "Loan term in months. Default 36."
+                },
+                "industry": {
+                    "type": "string",
+                    "description": "Borrower's industry sector",
+                    "enum": ["healthcare", "energy", "transportation", "manufacturing", "financial_services", "retail", "construction", "technology"]
+                }
+            },
+            "required": ["loan_amount", "collateral_type"]
+        }
+    },
+    {
+        "name": "score_full_application",
+        "description": "Complete credit application scoring combining PD and LGD models. Returns comprehensive risk assessment including expected loss, economic capital, RORAC, and decision recommendation. Use this for full underwriting analysis.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string",
+                    "description": "Name of the company"
+                },
+                "annual_revenue": {
+                    "type": "number",
+                    "description": "Annual revenue in dollars"
+                },
+                "net_income": {
+                    "type": "number",
+                    "description": "Net income in dollars"
+                },
+                "total_assets": {
+                    "type": "number",
+                    "description": "Total assets in dollars"
+                },
+                "total_liabilities": {
+                    "type": "number",
+                    "description": "Total liabilities in dollars"
+                },
+                "industry": {
+                    "type": "string",
+                    "description": "Industry sector",
+                    "enum": ["healthcare", "energy", "transportation", "manufacturing", "financial_services", "retail", "construction", "technology"]
+                },
+                "requested_amount": {
+                    "type": "number",
+                    "description": "Loan amount requested"
+                },
+                "collateral_type": {
+                    "type": "string",
+                    "description": "Type of collateral",
+                    "enum": ["real_estate", "equipment", "inventory", "receivables", "securities", "cash", "unsecured"]
+                },
+                "collateral_value": {
+                    "type": "number",
+                    "description": "Value of collateral (if applicable)"
+                },
+                "proposed_interest_rate": {
+                    "type": "number",
+                    "description": "Proposed annual interest rate as decimal (e.g., 0.065 for 6.5%). Default 0.06."
+                },
+                "term_months": {
+                    "type": "integer",
+                    "description": "Loan term in months. Default 36."
+                },
+                "credit_score": {
+                    "type": "number",
+                    "description": "Credit score (300-850). Default 700."
+                }
+            },
+            "required": ["company_name", "annual_revenue", "total_assets", "total_liabilities", "industry", "requested_amount", "collateral_type"]
         }
     },
     {
@@ -698,6 +844,137 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
         description = tool_input.get("description", "Custom simulation")
         result = execute_code(code)
         result["description"] = description
+        return result
+
+    elif tool_name == "score_company_pd":
+        scoring_service = get_scoring_service()
+
+        # Prepare features for PD model
+        total_assets = tool_input.get("total_assets", 1000000)
+        total_liabilities = tool_input.get("total_liabilities", 500000)
+        annual_revenue = tool_input.get("annual_revenue", 1000000)
+        net_income = tool_input.get("net_income", 50000)
+        loan_amount = tool_input.get("requested_loan_amount", 1000000)
+        credit_score = tool_input.get("credit_score", 700)
+
+        equity = max(total_assets - total_liabilities, 1)
+
+        features = {
+            "debt_to_equity": total_liabilities / equity,
+            "debt_to_assets": total_liabilities / total_assets,
+            "current_ratio": 1.5,
+            "quick_ratio": 1.2,
+            "interest_coverage_ratio": 3.0,
+            "return_on_assets": net_income / total_assets if total_assets > 0 else 0.05,
+            "return_on_equity": net_income / equity if equity > 0 else 0.10,
+            "profit_margin": net_income / annual_revenue if annual_revenue > 0 else 0.08,
+            "credit_score_normalized": credit_score / 100,
+            "payment_index_trend": 5,
+            "utilization_rate": 0.50,
+            "derogatory_ratio": 0,
+            "avg_days_past_due": 5,
+            "max_days_past_due": 30,
+            "dpd_volatility": 10,
+            "count_30dpd": 0,
+            "count_60dpd": 0,
+            "count_90dpd": 0,
+            "payment_consistency_score": 0.85,
+            "loan_to_revenue_ratio": loan_amount / annual_revenue if annual_revenue > 0 else 1.0,
+            "loan_to_assets_ratio": loan_amount / total_assets if total_assets > 0 else 1.0,
+            "industry_default_rate": 0.04,
+            "industry_risk_tier": 3,
+        }
+
+        result = scoring_service.predict_pd(features)
+        result["company_name"] = tool_input.get("company_name", "Unknown")
+        result["industry"] = tool_input.get("industry", "unknown")
+        result["input_summary"] = {
+            "annual_revenue": annual_revenue,
+            "total_assets": total_assets,
+            "total_liabilities": total_liabilities,
+            "debt_to_equity": round(total_liabilities / equity, 2),
+            "credit_score": credit_score,
+        }
+        return result
+
+    elif tool_name == "score_loan_lgd":
+        scoring_service = get_scoring_service()
+
+        loan_amount = tool_input.get("loan_amount", 1000000)
+        collateral_type = tool_input.get("collateral_type", "unsecured")
+        collateral_value = tool_input.get("collateral_value", 0)
+        term_months = tool_input.get("term_months", 36)
+
+        # Calculate LTV ratio
+        ltv_ratio = loan_amount / collateral_value if collateral_value > 0 else 1.0
+
+        features = {
+            "collateral_type": collateral_type,
+            "ltv_ratio": ltv_ratio,
+            "loan_amount": loan_amount,
+            "debt_to_equity": 1.5,
+            "current_ratio": 1.5,
+            "interest_coverage_ratio": 3.0,
+            "credit_score_normalized": 0.70,
+            "utilization_rate": 0.50,
+            "loan_to_revenue_ratio": 0.5,
+            "loan_to_assets_ratio": 0.3,
+            "term_months": term_months,
+            "interest_rate": 0.06,
+            "industry_risk_tier": 3,
+        }
+
+        result = scoring_service.predict_lgd(features)
+        result["input_summary"] = {
+            "loan_amount": loan_amount,
+            "collateral_type": collateral_type,
+            "collateral_value": collateral_value,
+            "ltv_ratio": round(ltv_ratio, 2),
+            "seniority": tool_input.get("seniority", "senior_secured"),
+        }
+
+        # Add recovery rate
+        lgd_score = result.get("lgd_score", 0.45)
+        result["recovery_rate"] = round(1 - lgd_score, 4)
+        result["expected_loss_amount"] = round(loan_amount * lgd_score, 2)
+
+        return result
+
+    elif tool_name == "score_full_application":
+        scoring_service = get_scoring_service()
+
+        customer_data = {
+            "company_name": tool_input.get("company_name", "Unknown"),
+            "annual_revenue": tool_input.get("annual_revenue", 1000000),
+            "net_income": tool_input.get("net_income", 50000),
+            "total_assets": tool_input.get("total_assets", 1000000),
+            "total_liabilities": tool_input.get("total_liabilities", 500000),
+            "industry": tool_input.get("industry", "unknown"),
+        }
+
+        collateral_value = tool_input.get("collateral_value", 0)
+        requested_amount = tool_input.get("requested_amount", 1000000)
+
+        loan_request = {
+            "requested_amount": requested_amount,
+            "collateral_type": tool_input.get("collateral_type", "unsecured"),
+            "collateral_value": collateral_value,
+            "ltv_ratio": requested_amount / collateral_value if collateral_value > 0 else 1.0,
+            "proposed_interest_rate": tool_input.get("proposed_interest_rate", 0.06),
+            "term_months": tool_input.get("term_months", 36),
+        }
+
+        bureau_data = {
+            "credit_score": tool_input.get("credit_score", 700),
+            "payment_index": 80,
+            "utilization_rate": 0.50,
+        }
+
+        result = scoring_service.score_application(customer_data, loan_request, bureau_data)
+        result["company_name"] = customer_data["company_name"]
+        result["industry"] = customer_data["industry"]
+        result["loan_amount"] = requested_amount
+
         return result
 
     else:
