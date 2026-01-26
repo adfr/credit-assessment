@@ -47,7 +47,7 @@ TOOLS = [
     },
     {
         "name": "run_stress_scenario",
-        "description": "Run a stress test scenario by shocking PD, LGD, or asset correlation for a specific industry segment. Returns baseline vs stressed VaR, expected loss, and capital requirements using Vasicek model.",
+        "description": "Run a stress test scenario by shocking PD, LGD, or asset correlation for a specific industry segment. Returns baseline vs stressed VaR, expected loss, and capital requirements using Monte Carlo simulation (100,000 iterations).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -66,7 +66,7 @@ TOOLS = [
                 },
                 "correlation": {
                     "type": "number",
-                    "description": "Asset correlation for Vasicek model (0 to 1). Default is 0.15. Higher correlation = higher tail risk. Typical values: 0.12-0.24 for corporates."
+                    "description": "Asset correlation for Monte Carlo simulation (0 to 1). Default is 0.20. Higher correlation = higher tail risk. Typical values: 0.12-0.24 for corporates."
                 }
             },
             "required": ["industry"]
@@ -74,7 +74,7 @@ TOOLS = [
     },
     {
         "name": "analyze_correlation_sensitivity",
-        "description": "Analyze how portfolio VaR and capital change across different asset correlation assumptions. Shows impact of correlation on tail risk using Vasicek model.",
+        "description": "Analyze how portfolio VaR and capital change across different asset correlation assumptions. Shows impact of correlation on tail risk using Monte Carlo simulation.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -264,7 +264,7 @@ TOOLS = [
                 },
                 "correlation": {
                     "type": "number",
-                    "description": "Asset correlation for VaR calculation. Default 0.15."
+                    "description": "Asset correlation for VaR calculation. Default 0.20."
                 }
             },
             "required": ["loan_amount", "industry"]
@@ -509,7 +509,7 @@ Use this for custom simulations that aren't covered by other tools, such as:
 
 The code has access to:
 - get_portfolio_dataframe(): Load loan data as pandas DataFrame (columns: loan_id, company_name, industry, region, outstanding_balance, pd_score, lgd_score, risk_grade, etc.)
-- calculate_portfolio_var(exposures, pds, lgds, correlation=0.15): Calculate VaR using Vasicek model
+- calculate_portfolio_var(exposures, pds, lgds, correlation=0.2, simulations=100000): Calculate VaR using Monte Carlo simulation
 - calculate_regulatory_capital(exposures, pds, lgds): Calculate Basel IRB capital
 - numpy (as np), pandas (as pd), scipy.stats (as stats)
 
@@ -542,7 +542,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
         industry = tool_input.get("industry", "all")
         pd_change = tool_input.get("pd_change", 0)
         lgd_change = tool_input.get("lgd_change", 0)
-        correlation = tool_input.get("correlation", 0.15)
+        correlation = tool_input.get("correlation", 0.20)
 
         # Build and execute simulation code
         import numpy as np
@@ -578,8 +578,8 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
         pds_stressed[filter_indices] = np.clip(pds_stressed[filter_indices] + pd_change, 0.0001, 0.9999)
         lgds_stressed[filter_indices] = np.clip(lgds_stressed[filter_indices] + lgd_change, 0.01, 0.99)
 
-        # Calculate metrics with correlation parameter
-        baseline_var = calculate_portfolio_var(exposures, pds_baseline, lgds_baseline, correlation=0.15)
+        # Calculate metrics with correlation parameter (Monte Carlo with 100k simulations)
+        baseline_var = calculate_portfolio_var(exposures, pds_baseline, lgds_baseline, correlation=0.20)
         stressed_var = calculate_portfolio_var(exposures, pds_stressed, lgds_stressed, correlation=correlation)
         baseline_cap = calculate_regulatory_capital(exposures, pds_baseline, lgds_baseline)
         stressed_cap = calculate_regulatory_capital(exposures, pds_stressed, lgds_stressed)
@@ -590,7 +590,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
                 "pd_change_pp": pd_change * 100,
                 "lgd_change_pp": lgd_change * 100,
                 "correlation": correlation,
-                "baseline_correlation": 0.15,
+                "baseline_correlation": 0.20,
             },
             "affected_loans": len(filtered_df),
             "affected_exposure": float(filtered_df["outstanding_balance"].sum()),
@@ -653,7 +653,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
             })
 
         # Calculate sensitivity metrics
-        base_idx = correlation_range.index(0.15) if 0.15 in correlation_range else 0
+        base_idx = correlation_range.index(0.20) if 0.20 in correlation_range else 0
         base_var = results[base_idx]["var_99_9"]
 
         return {
@@ -736,7 +736,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
 
         loan_amount = tool_input.get("loan_amount", 1000000)
         industry = tool_input.get("industry", "technology")
-        correlation = tool_input.get("correlation", 0.15)
+        correlation = tool_input.get("correlation", 0.20)
         lgd = tool_input.get("lgd", 0.45)
 
         # Get current portfolio
@@ -1030,10 +1030,11 @@ Available industries: healthcare, energy, transportation, manufacturing, financi
 Risk grades: A (lowest risk), B, C, D, E (highest risk)
 Payment statuses: current, delinquent, default
 
-Asset correlation in the Vasicek model:
+Asset correlation in Monte Carlo simulation:
 - Higher correlation means defaults are more likely to happen together (systemic risk)
 - Typical corporate correlations: 0.12-0.24
-- Default is 0.15; stress scenarios might use 0.25-0.30
+- Default is 0.20; stress scenarios might use 0.25-0.30
+- All VaR calculations use 100,000 Monte Carlo simulations for accuracy
 
 Always explain your analysis and what the numbers mean for risk management."""
 

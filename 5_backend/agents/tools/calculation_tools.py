@@ -102,7 +102,7 @@ def calculate_economic_capital(
     pd: float,
     lgd: float,
     confidence: float = 0.999,
-    correlation: float = 0.15
+    correlation: float = 0.20
 ) -> dict:
     """
     Calculate Economic Capital using Vasicek model
