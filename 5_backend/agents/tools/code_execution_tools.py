@@ -66,50 +66,107 @@ def calculate_portfolio_var(
     pds: np.ndarray,
     lgds: np.ndarray,
     confidence: float = 0.999,
-    correlation: float = 0.15
+    correlation: float = 0.2,
+    simulations: int = 100000,
+    seed: int = 42
 ) -> dict:
     """
-    Calculate portfolio VaR using the Vasicek single-factor model.
+    Calculate portfolio VaR using Monte Carlo simulation.
+
+    Uses the same methodology as the dashboard (capital_service.py) to ensure
+    consistent results across the application.
 
     Args:
         exposures: Array of loan exposures (EAD)
         pds: Array of probability of defaults
         lgds: Array of loss given defaults
         confidence: Confidence level (default 99.9%)
-        correlation: Asset correlation (default 0.15)
+        correlation: Asset correlation (default 0.2)
+        simulations: Number of Monte Carlo simulations (default 100,000)
+        seed: Random seed for reproducibility
 
     Returns:
         dict with VaR, expected loss, and breakdown
     """
-    # Expected loss
-    el = np.sum(exposures * pds * lgds)
+    np.random.seed(seed)
 
-    # Stressed PD at confidence level (Vasicek formula)
-    norm_conf = stats.norm.ppf(confidence)
+    n_loans = len(exposures)
+    if n_loans == 0:
+        return {
+            "var": 0.0,
+            "var_99": 0.0,
+            "var_999": 0.0,
+            "expected_loss": 0.0,
+            "economic_capital": 0.0,
+            "expected_shortfall": 0.0,
+            "confidence": confidence,
+            "correlation": correlation,
+            "simulations": simulations,
+            "n_loans": 0,
+            "total_exposure": 0.0,
+        }
 
-    stressed_pds = stats.norm.cdf(
-        (stats.norm.ppf(pds) + np.sqrt(correlation) * norm_conf) /
-        np.sqrt(1 - correlation)
-    )
+    # Constrain PDs
+    pds = np.clip(pds, 0.0003, 0.9999)
 
-    # Stressed loss
-    stressed_loss = np.sum(exposures * stressed_pds * lgds)
+    # Build correlation matrix (uniform correlation)
+    corr_matrix = np.full((n_loans, n_loans), correlation)
+    np.fill_diagonal(corr_matrix, 1.0)
 
-    # VaR is the stressed loss
-    var = stressed_loss
+    # Cholesky decomposition for correlated random numbers
+    try:
+        chol = np.linalg.cholesky(corr_matrix)
+    except np.linalg.LinAlgError:
+        # If not positive definite, use identity (independent defaults)
+        chol = np.eye(n_loans)
 
-    # Economic capital = Unexpected loss
-    ec = stressed_loss - el
+    # Default thresholds (inverse normal of PD)
+    thresholds = stats.norm.ppf(pds)
+
+    # Monte Carlo simulation
+    losses = np.zeros(simulations)
+
+    for i in range(simulations):
+        # Generate correlated standard normal random variables
+        z = np.random.standard_normal(n_loans)
+        correlated_z = chol @ z
+
+        # Determine defaults (if Z < threshold, loan defaults)
+        defaults = (correlated_z < thresholds).astype(float)
+
+        # Calculate loss for this scenario
+        losses[i] = np.sum(defaults * exposures * lgds)
+
+    # Calculate statistics
+    expected_loss = np.mean(losses)
+    var_95 = np.percentile(losses, 95)
+    var_99 = np.percentile(losses, 99)
+    var_999 = np.percentile(losses, 99.9)
+
+    # VaR at requested confidence level
+    var = np.percentile(losses, confidence * 100)
+
+    # Expected Shortfall (CVaR) - average loss beyond VaR
+    tail_losses = losses[losses >= var_999]
+    expected_shortfall = np.mean(tail_losses) if len(tail_losses) > 0 else var_999
+
+    # Economic capital = Unexpected loss = VaR - EL
+    economic_capital = var_999 - expected_loss
 
     return {
         "var": float(var),
-        "expected_loss": float(el),
-        "economic_capital": float(ec),
-        "stressed_loss": float(stressed_loss),
-        "avg_stressed_pd": float(np.mean(stressed_pds)),
+        "var_95": float(var_95),
+        "var_99": float(var_99),
+        "var_999": float(var_999),
+        "expected_loss": float(expected_loss),
+        "economic_capital": float(economic_capital),
+        "expected_shortfall": float(expected_shortfall),
+        "loss_std": float(np.std(losses)),
+        "max_loss": float(np.max(losses)),
         "confidence": confidence,
         "correlation": correlation,
-        "n_loans": len(exposures),
+        "simulations": simulations,
+        "n_loans": n_loans,
         "total_exposure": float(np.sum(exposures)),
     }
 

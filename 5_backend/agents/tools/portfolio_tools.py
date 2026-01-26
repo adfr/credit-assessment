@@ -3,11 +3,16 @@ Portfolio-level tools for the reasoning agent
 """
 
 import os
+import sys
 from typing import Any
 import sqlite3
 from pathlib import Path
 
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
+
+# Add backend to path for imports
+sys.path.insert(0, str(PROJECT_ROOT / "5_backend"))
+from services.capital_service import CapitalService
 
 
 def get_db_connection():
@@ -21,7 +26,7 @@ def get_portfolio_summary() -> dict[str, Any]:
     Get portfolio summary statistics including:
     - Total exposure and loan count
     - Average PD, LGD, interest rate
-    - Expected loss and capital metrics
+    - Expected loss and capital metrics (using full Basel IRB methodology)
     - Payment status breakdown
     """
     conn = get_db_connection()
@@ -29,6 +34,7 @@ def get_portfolio_summary() -> dict[str, Any]:
     cursor = conn.cursor()
 
     try:
+        # Get summary statistics
         cursor.execute("""
             SELECT
                 COUNT(*) as loan_count,
@@ -51,12 +57,17 @@ def get_portfolio_summary() -> dict[str, Any]:
             avg_pd = row["avg_pd"] or 0.05
             avg_lgd = row["avg_lgd"] or 0.45
 
-            # Calculate capital metrics
-            expected_loss = total_exposure * avg_pd * avg_lgd
-            regulatory_capital = total_exposure * avg_pd * avg_lgd * 8  # Simplified Basel
-            economic_capital = expected_loss * 2.5  # Simplified EC
-            var_999 = expected_loss * 3.0  # Simplified VaR
-            risk_weighted_assets = total_exposure * avg_pd * 12.5
+            # Fetch only active loans for capital calculation (exclude defaulted/written-off)
+            cursor.execute("""
+                SELECT loan_id, outstanding_balance, pd_score, lgd_score, term_months
+                FROM loans
+                WHERE status = 'active'
+            """)
+            loans = [dict(loan) for loan in cursor.fetchall()]
+
+            # Use CapitalService for proper Basel IRB and Monte Carlo VaR calculations
+            capital_service = CapitalService()
+            capital = capital_service.get_portfolio_capital_summary(loans)
 
             return {
                 "loan_count": row["loan_count"],
@@ -70,13 +81,13 @@ def get_portfolio_summary() -> dict[str, Any]:
                 "current_count": row["current_count"],
                 "delinquent_count": row["delinquent_count"],
                 "default_count": row["default_count"],
-                "expected_loss": expected_loss,
-                "regulatory_capital": regulatory_capital,
-                "economic_capital": economic_capital,
-                "var_999": var_999,
-                "risk_weighted_assets": risk_weighted_assets,
-                "reg_capital_ratio": (regulatory_capital / total_exposure * 100) if total_exposure > 0 else 0,
-                "econ_capital_ratio": (economic_capital / total_exposure * 100) if total_exposure > 0 else 0,
+                "expected_loss": capital["expected_loss"],
+                "regulatory_capital": capital["regulatory_capital"],
+                "economic_capital": capital["economic_capital"],
+                "var_999": capital["var_999"],
+                "risk_weighted_assets": capital["risk_weighted_assets"],
+                "reg_capital_ratio": capital["reg_capital_ratio"],
+                "econ_capital_ratio": capital["econ_capital_ratio"],
             }
         return {}
     finally:

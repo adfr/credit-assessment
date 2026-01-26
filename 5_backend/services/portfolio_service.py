@@ -61,8 +61,8 @@ class PortfolioService:
         """)
         summary = cursor.fetchone()
 
-        # Get all loans for capital calculations
-        cursor.execute("SELECT * FROM loans")
+        # Get only active loans for capital calculations (exclude defaulted/written-off)
+        cursor.execute("SELECT * FROM loans WHERE status = 'active'")
         loans = cursor.fetchall()
         conn.close()
 

@@ -165,7 +165,7 @@ class CapitalService:
         self,
         loans: List[Dict],
         confidence: float = 0.999,
-        simulations: int = 10000,
+        simulations: int = 100000,
         seed: int = 42
     ) -> Dict:
         """

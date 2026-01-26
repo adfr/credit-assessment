@@ -151,34 +151,77 @@ def calculate_var(
     exposure: float,
     pd: float,
     lgd: float,
-    confidence: float = 0.999
+    confidence: float = 0.999,
+    simulations: int = 100000,
+    correlation: float = 0.2,
+    seed: int = 42
 ) -> dict:
     """
-    Calculate Value at Risk (VaR)
+    Calculate Value at Risk (VaR) using Monte Carlo simulation
 
     Args:
         exposure: Exposure at Default
         pd: Probability of Default (decimal)
         lgd: Loss Given Default (decimal)
         confidence: Confidence level
+        simulations: Number of Monte Carlo simulations
+        correlation: Asset correlation for systematic risk factor
+        seed: Random seed for reproducibility
 
     Returns:
         dict with VaR calculation
     """
-    el = exposure * pd * lgd
+    import numpy as np
+    np.random.seed(seed)
 
-    # Simple parametric VaR using normal approximation
-    sigma = math.sqrt(pd * (1 - pd)) * lgd * exposure
-    z_score = stats.norm.ppf(confidence)
+    # Constrain PD
+    pd = max(0.0003, min(pd, 0.9999))
 
-    var = el + z_score * sigma
+    # Default threshold (inverse normal of PD)
+    threshold = stats.norm.ppf(pd)
+
+    # Monte Carlo simulation with single-factor model
+    # Z = sqrt(rho) * M + sqrt(1-rho) * epsilon
+    # where M is systematic factor, epsilon is idiosyncratic
+    losses = []
+
+    for _ in range(simulations):
+        # Systematic risk factor (market-wide shock)
+        systematic = np.random.standard_normal()
+
+        # Idiosyncratic factor (borrower-specific)
+        idiosyncratic = np.random.standard_normal()
+
+        # Combined factor
+        z = math.sqrt(correlation) * systematic + math.sqrt(1 - correlation) * idiosyncratic
+
+        # Default occurs if Z < threshold
+        if z < threshold:
+            loss = exposure * lgd
+        else:
+            loss = 0.0
+
+        losses.append(loss)
+
+    losses = np.array(losses)
+
+    # Calculate statistics
+    expected_loss = np.mean(losses)
+    var = np.percentile(losses, confidence * 100)
+    var_99 = np.percentile(losses, 99)
+
+    # Expected Shortfall (CVaR) - average loss beyond VaR
+    tail_losses = losses[losses >= var]
+    expected_shortfall = np.mean(tail_losses) if len(tail_losses) > 0 else var
 
     return {
         "var": var,
-        "expected_loss": el,
-        "volatility": sigma,
-        "z_score": z_score,
+        "var_99": var_99,
+        "expected_loss": expected_loss,
+        "expected_shortfall": expected_shortfall,
         "confidence": confidence,
+        "simulations": simulations,
+        "correlation": correlation,
         "exposure": exposure,
         "pd": pd,
         "lgd": lgd,
