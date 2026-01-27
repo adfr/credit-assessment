@@ -205,10 +205,17 @@ def load_features(config: dict) -> pd.DataFrame:
         df = df[df["default_flag"] == 1].copy()
         print(f"  - Filtered to {len(df)} defaulted loans")
 
-    # Check if LGD target exists
+    # Check if LGD target exists, compute if missing
     if "lgd" not in df.columns or df["lgd"].isna().all():
-        print("[ERROR] LGD target not available")
-        sys.exit(1)
+        # Try to compute LGD from loss_amount and loan_amount
+        if "loss_amount" in df.columns and "loan_amount" in df.columns:
+            print("  - Computing LGD from loss_amount / loan_amount...")
+            df["lgd"] = (df["loss_amount"] / df["loan_amount"].replace(0, np.nan)).clip(0, 1)
+            print(f"  - Computed LGD for {df['lgd'].notna().sum()} loans (mean: {df['lgd'].mean():.2%})")
+        else:
+            print("[ERROR] LGD target not available and cannot be computed")
+            print("  Required columns: lgd OR (loss_amount AND loan_amount)")
+            sys.exit(1)
 
     # Remove rows with missing LGD
     df = df[df["lgd"].notna()]
