@@ -2,6 +2,10 @@
 """
 Model Validation Suite
 Comprehensive validation of PD and LGD models.
+
+Supports two data storage modes:
+- local: Reads features from local parquet file (default)
+- iceberg/cde/spark: Reads features from Iceberg tables via Spark
 """
 
 import os
@@ -25,6 +29,9 @@ except ImportError as e:
 # Get project root from environment or current working directory
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 
+# Determine storage mode from environment
+DATA_STORAGE_MODE = os.environ.get("DATA_STORAGE_MODE", "local").lower()
+
 
 def load_model(model_type: str) -> dict:
     """Load trained model."""
@@ -39,14 +46,55 @@ def load_model(model_type: str) -> dict:
 
 
 def load_features() -> pd.DataFrame:
-    """Load feature matrix."""
+    """Load feature matrix based on DATA_STORAGE_MODE."""
+    print(f"[INFO] Data storage mode: {DATA_STORAGE_MODE}")
+
+    if DATA_STORAGE_MODE in ("iceberg", "cde", "spark"):
+        return load_features_iceberg()
+    else:
+        return load_features_local()
+
+
+def load_features_local() -> pd.DataFrame:
+    """Load feature matrix from local parquet file."""
     data_path = PROJECT_ROOT / "data" / "features" / "feature_matrix.parquet"
 
     if not data_path.exists():
-        print(f"[ERROR] Feature matrix not found")
+        print(f"[ERROR] Feature matrix not found at {data_path}")
         return None
 
     return pd.read_parquet(data_path)
+
+
+def load_features_iceberg() -> pd.DataFrame:
+    """Load feature matrix from Iceberg tables via Spark."""
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        print("[ERROR] PySpark not available for Iceberg mode")
+        return None
+
+    warehouse_path = os.environ.get("SPARK_WAREHOUSE_DIR")
+    if not warehouse_path:
+        print("[ERROR] SPARK_WAREHOUSE_DIR is required for Iceberg mode")
+        return None
+
+    features_path = f"{warehouse_path}/features"
+    print(f"[INFO] Loading features from Iceberg: {features_path}")
+
+    spark = SparkSession.builder \
+        .appName("Model_Validation") \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .getOrCreate()
+
+    try:
+        spark_df = spark.read.parquet(features_path)
+        df = spark_df.toPandas()
+        print(f"[INFO] Loaded {len(df)} observations from Iceberg")
+        return df
+    except Exception as e:
+        print(f"[ERROR] Failed to load features from Iceberg: {e}")
+        return None
 
 
 def calculate_gini(y_true: np.ndarray, y_pred: np.ndarray) -> float:

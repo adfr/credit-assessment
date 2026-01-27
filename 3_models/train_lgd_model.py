@@ -2,6 +2,10 @@
 """
 LGD (Loss Given Default) Model Training Script
 Trains regression model to predict loss severity for defaulted loans.
+
+Supports two data storage modes:
+- local: Reads features from local parquet file (default)
+- iceberg/cde/spark: Reads features from Iceberg tables via Spark
 """
 
 import os
@@ -41,6 +45,9 @@ except ImportError:
 # Get project root from environment or current working directory
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", os.getcwd()))
 
+# Determine storage mode from environment
+DATA_STORAGE_MODE = os.environ.get("DATA_STORAGE_MODE", "local").lower()
+
 
 def load_config() -> dict:
     """Load LGD model configuration."""
@@ -49,8 +56,8 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
-def load_features(config: dict) -> pd.DataFrame:
-    """Load feature matrix and filter to defaulted loans."""
+def load_features_local() -> pd.DataFrame:
+    """Load feature matrix from local parquet file."""
     data_path = PROJECT_ROOT / "data" / "features" / "feature_matrix.parquet"
 
     if not data_path.exists():
@@ -59,7 +66,63 @@ def load_features(config: dict) -> pd.DataFrame:
         sys.exit(1)
 
     df = pd.read_parquet(data_path)
-    print(f"\n[INFO] Loaded {len(df)} total observations")
+    print(f"\n[INFO] Loaded {len(df)} total observations from local file")
+    return df
+
+
+def load_features_iceberg() -> pd.DataFrame:
+    """Load feature matrix from Iceberg tables via Spark."""
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        print("\n[ERROR] PySpark not available for Iceberg mode")
+        print("Please install pyspark or use DATA_STORAGE_MODE=local")
+        sys.exit(1)
+
+    warehouse_path = os.environ.get("SPARK_WAREHOUSE_DIR")
+    if not warehouse_path:
+        print("\n[ERROR] SPARK_WAREHOUSE_DIR is required for Iceberg mode")
+        print("Please set SPARK_WAREHOUSE_DIR or use DATA_STORAGE_MODE=local")
+        sys.exit(1)
+
+    features_path = f"{warehouse_path}/features"
+    print(f"\n[INFO] Loading features from Iceberg: {features_path}")
+
+    # Create Spark session (uses existing CML Spark config)
+    spark = SparkSession.builder \
+        .appName("LGD_Model_Training") \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .getOrCreate()
+
+    try:
+        # Read features from Iceberg/parquet
+        spark_df = spark.read.parquet(features_path)
+        record_count = spark_df.count()
+        print(f"[INFO] Found {record_count} records in Iceberg")
+
+        # Convert to pandas for sklearn training
+        df = spark_df.toPandas()
+        print(f"[INFO] Loaded {len(df)} total observations from Iceberg")
+
+        return df
+    except Exception as e:
+        print(f"\n[ERROR] Failed to load features from Iceberg: {e}")
+        print(f"  Path: {features_path}")
+        print("  Please ensure feature engineering job has completed")
+        sys.exit(1)
+
+
+def load_features(config: dict) -> pd.DataFrame:
+    """Load feature matrix and filter to defaulted loans."""
+    print(f"\n[INFO] Data storage mode: {DATA_STORAGE_MODE}")
+
+    if DATA_STORAGE_MODE == "local":
+        df = load_features_local()
+    elif DATA_STORAGE_MODE in ("iceberg", "cde", "spark"):
+        df = load_features_iceberg()
+    else:
+        print(f"\n[WARN] Unknown DATA_STORAGE_MODE: {DATA_STORAGE_MODE}, using local")
+        df = load_features_local()
 
     # Filter to defaulted loans only
     if config["training"]["filter_defaults_only"]:
