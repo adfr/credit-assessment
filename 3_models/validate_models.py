@@ -415,9 +415,15 @@ def validate_lgd_model(model_data: dict, df: pd.DataFrame) -> dict:
         print("  No defaulted loans with LGD values for validation")
         return {}
 
-    # Prepare data
-    available_features = [f for f in features if f in df_default.columns]
-    X = df_default[available_features].fillna(df_default[available_features].median())
+    # Prepare data - ensure all expected features exist
+    X = df_default.copy()
+
+    # Add missing features as zeros (e.g., collateral dummies)
+    for f in features:
+        if f not in X.columns:
+            X[f] = 0
+
+    X = X[features].fillna(X[features].median())
     y = df_default['lgd']
 
     # Get predictions
