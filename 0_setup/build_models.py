@@ -43,6 +43,22 @@ MODEL_CONFIGS = [
         "cpu": 2,
         "memory": 4,
     },
+    {
+        "entity_label": "regulatory_capital_model",
+        "name": "Regulatory Capital Model Endpoint",
+        "script": "4_endpoints/cml_serve_regulatory_capital.py",
+        "function": "predict",
+        "cpu": 2,
+        "memory": 4,
+    },
+    {
+        "entity_label": "var_model",
+        "name": "VaR Model Endpoint",
+        "script": "4_endpoints/cml_serve_var.py",
+        "function": "predict",
+        "cpu": 2,
+        "memory": 4,
+    },
 ]
 
 

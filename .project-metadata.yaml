@@ -215,6 +215,34 @@ tasks:
       type: fixed
       num_replicas: 1
 
+  - type: create_model
+    name: Regulatory Capital Model Endpoint
+    entity_label: regulatory_capital_model
+    description: Basel IRB regulatory capital calculation endpoint
+    short_summary: Deploy regulatory capital model as REST API
+    script: 4_endpoints/cml_serve_regulatory_capital.py
+    function: predict
+    default_resources:
+      cpu: 2
+      memory: 4
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
+  - type: create_model
+    name: VaR Model Endpoint
+    entity_label: var_model
+    description: Value at Risk Monte Carlo simulation endpoint
+    short_summary: Deploy VaR model as REST API
+    script: 4_endpoints/cml_serve_var.py
+    function: predict
+    default_resources:
+      cpu: 2
+      memory: 4
+    default_replication_policy:
+      type: fixed
+      num_replicas: 1
+
   - type: run_session
     name: Build and Deploy Models
     script: 0_setup/build_models.py
