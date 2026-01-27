@@ -156,6 +156,7 @@ def load_features_iceberg() -> pd.DataFrame:
 
         spark = SparkSession.builder \
             .appName("LGD_Model_Training") \
+            .master("local[*]") \
             .config("spark.sql.adaptive.enabled", "true") \
             .getOrCreate()
 

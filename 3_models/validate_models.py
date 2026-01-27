@@ -12,10 +12,66 @@ import os
 import sys
 import pickle
 import warnings
+import subprocess
 from pathlib import Path
 from datetime import datetime
 
 warnings.filterwarnings("ignore")
+
+
+def refresh_kerberos_credentials():
+    """Refresh Kerberos credentials using kinit.
+
+    Required for RAZ-enabled environments to access S3.
+    """
+    try:
+        result = subprocess.run(
+            ["kinit", "-R"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            keytab_path = os.environ.get("KRB5_KEYTAB", "/home/cdsw/.keytab")
+            principal = os.environ.get("KRB5_PRINCIPAL")
+
+            if principal and Path(keytab_path).exists():
+                result = subprocess.run(
+                    ["kinit", "-kt", keytab_path, principal],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                if result.returncode == 0:
+                    print("[INFO] Kerberos credentials refreshed via keytab")
+                    return True
+
+            klist_result = subprocess.run(
+                ["klist", "-s"],
+                capture_output=True,
+                timeout=10
+            )
+            if klist_result.returncode == 0:
+                print("[INFO] Existing Kerberos ticket is valid")
+                return True
+
+            print(f"[WARN] kinit failed: {result.stderr}")
+            return False
+        else:
+            print("[INFO] Kerberos ticket renewed successfully")
+            return True
+
+    except FileNotFoundError:
+        print("[WARN] kinit not found")
+        return False
+    except subprocess.TimeoutExpired:
+        print("[WARN] kinit timed out")
+        return False
+    except Exception as e:
+        print(f"[WARN] Kerberos refresh failed: {e}")
+        return False
 
 try:
     import pandas as pd
@@ -81,6 +137,9 @@ def load_features_iceberg() -> pd.DataFrame:
     features_path = f"{warehouse_path}/features"
     print(f"[INFO] Loading features from: {features_path}")
 
+    # Refresh Kerberos credentials for RAZ-enabled S3 access
+    refresh_kerberos_credentials()
+
     # Try Spark first
     try:
         from pyspark.sql import SparkSession
@@ -88,6 +147,7 @@ def load_features_iceberg() -> pd.DataFrame:
 
         spark = SparkSession.builder \
             .appName("Model_Validation") \
+            .master("local[*]") \
             .config("spark.sql.adaptive.enabled", "true") \
             .getOrCreate()
 

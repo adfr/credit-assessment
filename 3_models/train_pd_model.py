@@ -161,6 +161,7 @@ def load_features_iceberg(config: dict) -> pd.DataFrame:
 
         spark = SparkSession.builder \
             .appName("PD_Model_Training") \
+            .master("local[*]") \
             .config("spark.sql.adaptive.enabled", "true") \
             .getOrCreate()
 
