@@ -88,7 +88,7 @@ async def track_metrics(request, call_next):
 
 
 # CORS middleware - DISABLED because CML proxy adds CORS headers automatically
-# Having both causes duplicate headers which some browsers reject
+# Having both causes duplicate headers which browsers reject
 # app.add_middleware(
 #     CORSMiddleware,
 #     allow_origins=["*"],

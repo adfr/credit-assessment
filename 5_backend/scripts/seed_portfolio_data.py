@@ -65,19 +65,93 @@ PAYMENT_STATUS = [
     ("default", 0.10),
 ]
 
-# Company name prefixes and suffixes
-COMPANY_PREFIXES = [
-    "Apex", "Global", "Premier", "United", "Pacific", "Atlantic", "Northern", "Southern",
-    "Central", "Metro", "National", "Allied", "Dynamic", "Precision", "Advanced", "Tech",
-    "Prime", "Elite", "Summit", "Pinnacle", "Horizon", "Vista", "Nova", "Quantum",
-    "Sterling", "Crown", "Royal", "Capital", "First", "Core", "Alpha", "Omega"
-]
+# Real companies by industry (S&P 500 and major public companies)
+REAL_COMPANIES = {
+    "manufacturing": [
+        ("Caterpillar Inc.", "CAT"), ("Deere & Company", "DE"), ("3M Company", "MMM"),
+        ("Honeywell International", "HON"), ("General Electric", "GE"), ("Illinois Tool Works", "ITW"),
+        ("Emerson Electric", "EMR"), ("Parker-Hannifin", "PH"), ("Rockwell Automation", "ROK"),
+        ("Stanley Black & Decker", "SWK"), ("Dover Corporation", "DOV"), ("Fortive Corporation", "FTV"),
+        ("PACCAR Inc.", "PCAR"), ("Cummins Inc.", "CMI"), ("Eaton Corporation", "ETN"),
+        ("Boeing Company", "BA"), ("Lockheed Martin", "LMT"), ("Raytheon Technologies", "RTX"),
+        ("General Dynamics", "GD"), ("Northrop Grumman", "NOC"),
+    ],
+    "technology": [
+        ("Apple Inc.", "AAPL"), ("Microsoft Corporation", "MSFT"), ("Alphabet Inc.", "GOOGL"),
+        ("Amazon.com Inc.", "AMZN"), ("Meta Platforms Inc.", "META"), ("NVIDIA Corporation", "NVDA"),
+        ("Tesla Inc.", "TSLA"), ("Adobe Inc.", "ADBE"), ("Salesforce Inc.", "CRM"),
+        ("Intel Corporation", "INTC"), ("Cisco Systems Inc.", "CSCO"), ("Oracle Corporation", "ORCL"),
+        ("IBM Corporation", "IBM"), ("Qualcomm Inc.", "QCOM"), ("AMD Inc.", "AMD"),
+        ("ServiceNow Inc.", "NOW"), ("Palantir Technologies", "PLTR"), ("CrowdStrike Holdings", "CRWD"),
+        ("Palo Alto Networks", "PANW"), ("Snowflake Inc.", "SNOW"),
+    ],
+    "healthcare": [
+        ("Johnson & Johnson", "JNJ"), ("UnitedHealth Group", "UNH"), ("Pfizer Inc.", "PFE"),
+        ("Eli Lilly and Company", "LLY"), ("AbbVie Inc.", "ABBV"), ("Merck & Co.", "MRK"),
+        ("Thermo Fisher Scientific", "TMO"), ("Abbott Laboratories", "ABT"), ("Danaher Corporation", "DHR"),
+        ("Bristol-Myers Squibb", "BMY"), ("Amgen Inc.", "AMGN"), ("Gilead Sciences", "GILD"),
+        ("Moderna Inc.", "MRNA"), ("CVS Health Corporation", "CVS"), ("Cigna Group", "CI"),
+        ("Humana Inc.", "HUM"), ("HCA Healthcare", "HCA"), ("Medtronic plc", "MDT"),
+        ("Boston Scientific", "BSX"), ("Stryker Corporation", "SYK"),
+    ],
+    "retail": [
+        ("Walmart Inc.", "WMT"), ("Costco Wholesale", "COST"), ("Target Corporation", "TGT"),
+        ("Home Depot", "HD"), ("Lowe's Companies", "LOW"), ("TJX Companies", "TJX"),
+        ("Ross Stores", "ROST"), ("Dollar General", "DG"), ("Dollar Tree", "DLTR"),
+        ("Best Buy Co.", "BBY"), ("AutoZone Inc.", "AZO"), ("O'Reilly Automotive", "ORLY"),
+        ("Ulta Beauty", "ULTA"), ("Gap Inc.", "GPS"), ("Nordstrom Inc.", "JWN"),
+        ("Macy's Inc.", "M"), ("Dick's Sporting Goods", "DKS"), ("Tractor Supply", "TSCO"),
+        ("Williams-Sonoma", "WSM"), ("Etsy Inc.", "ETSY"),
+    ],
+    "construction": [
+        ("D.R. Horton", "DHI"), ("Lennar Corporation", "LEN"), ("PulteGroup Inc.", "PHM"),
+        ("NVR Inc.", "NVR"), ("Toll Brothers", "TOL"), ("Meritage Homes", "MTH"),
+        ("KB Home", "KBH"), ("Jacobs Engineering", "J"), ("AECOM", "ACM"),
+        ("Quanta Services", "PWR"), ("EMCOR Group", "EME"), ("MasTec Inc.", "MTZ"),
+        ("Martin Marietta", "MLM"), ("Vulcan Materials", "VMC"), ("Eagle Materials", "EXP"),
+        ("Builders FirstSource", "BLDR"), ("Owens Corning", "OC"), ("Masco Corporation", "MAS"),
+        ("Trex Company", "TREX"), ("UFP Industries", "UFPI"),
+    ],
+    "services": [
+        ("Accenture plc", "ACN"), ("Cognizant Technology", "CTSH"), ("Automatic Data Processing", "ADP"),
+        ("Robert Half International", "RHI"), ("ManpowerGroup", "MAN"), ("Booz Allen Hamilton", "BAH"),
+        ("Leidos Holdings", "LDOS"), ("Gartner Inc.", "IT"), ("Verisk Analytics", "VRSK"),
+        ("Equifax Inc.", "EFX"), ("TransUnion", "TRU"), ("Dun & Bradstreet", "DNB"),
+        ("FactSet Research", "FDS"), ("CoStar Group", "CSGP"), ("Cintas Corporation", "CTAS"),
+        ("Waste Management", "WM"), ("Republic Services", "RSG"), ("Rollins Inc.", "ROL"),
+        ("Iron Mountain", "IRM"), ("Paychex Inc.", "PAYX"),
+    ],
+    "energy": [
+        ("Exxon Mobil", "XOM"), ("Chevron Corporation", "CVX"), ("ConocoPhillips", "COP"),
+        ("EOG Resources", "EOG"), ("Schlumberger Limited", "SLB"), ("Pioneer Natural Resources", "PXD"),
+        ("Phillips 66", "PSX"), ("Valero Energy", "VLO"), ("Marathon Petroleum", "MPC"),
+        ("Occidental Petroleum", "OXY"), ("Devon Energy", "DVN"), ("Diamondback Energy", "FANG"),
+        ("NextEra Energy", "NEE"), ("Duke Energy", "DUK"), ("Southern Company", "SO"),
+        ("Dominion Energy", "D"), ("Kinder Morgan", "KMI"), ("Williams Companies", "WMB"),
+        ("Baker Hughes", "BKR"), ("Halliburton Company", "HAL"),
+    ],
+    "transportation": [
+        ("Union Pacific", "UNP"), ("CSX Corporation", "CSX"), ("Norfolk Southern", "NSC"),
+        ("FedEx Corporation", "FDX"), ("United Parcel Service", "UPS"), ("XPO Logistics", "XPO"),
+        ("J.B. Hunt Transport", "JBHT"), ("Old Dominion Freight", "ODFL"), ("Delta Air Lines", "DAL"),
+        ("United Airlines", "UAL"), ("American Airlines", "AAL"), ("Southwest Airlines", "LUV"),
+        ("Uber Technologies", "UBER"), ("Lyft Inc.", "LYFT"), ("Ryder System", "R"),
+        ("Avis Budget Group", "CAR"), ("GATX Corporation", "GATX"), ("Landstar System", "LSTR"),
+        ("Knight-Swift Transportation", "KNX"), ("Werner Enterprises", "WERN"),
+    ],
+    "hospitality": [
+        ("Marriott International", "MAR"), ("Hilton Worldwide", "HLT"), ("Hyatt Hotels", "H"),
+        ("Wyndham Hotels", "WH"), ("Choice Hotels", "CHH"), ("McDonald's Corporation", "MCD"),
+        ("Starbucks Corporation", "SBUX"), ("Yum! Brands", "YUM"), ("Chipotle Mexican Grill", "CMG"),
+        ("Domino's Pizza", "DPZ"), ("Darden Restaurants", "DRI"), ("Wendy's Company", "WEN"),
+        ("Texas Roadhouse", "TXRH"), ("Carnival Corporation", "CCL"), ("Royal Caribbean", "RCL"),
+        ("Norwegian Cruise Line", "NCLH"), ("Vail Resorts", "MTN"), ("Live Nation Entertainment", "LYV"),
+        ("Six Flags Entertainment", "SIX"), ("Cedar Fair", "FUN"),
+    ],
+}
 
-COMPANY_SUFFIXES = [
-    "Industries", "Corp", "Inc", "LLC", "Group", "Holdings", "Enterprises", "Solutions",
-    "Systems", "Technologies", "Services", "Manufacturing", "Partners", "Associates",
-    "International", "Worldwide", "Global", "Limited", "Company"
-]
+# Track used companies to avoid duplicates in the same seeding run
+_used_companies = set()
 
 
 def weighted_choice(choices):
@@ -87,20 +161,32 @@ def weighted_choice(choices):
     return random.choices(items, weights=weights, k=1)[0]
 
 
-def generate_company_name():
-    """Generate a random company name."""
-    prefix = random.choice(COMPANY_PREFIXES)
-    suffix = random.choice(COMPANY_SUFFIXES)
-    return f"{prefix} {suffix}"
+def generate_company_name(industry: str) -> tuple:
+    """Get a real company name and ticker for the given industry."""
+    global _used_companies
+
+    # Get available companies for this industry
+    available = [c for c in REAL_COMPANIES.get(industry, []) if c[0] not in _used_companies]
+
+    if available:
+        company = random.choice(available)
+        _used_companies.add(company[0])
+        return company  # (name, ticker)
+    else:
+        # If all real companies used, reuse with a slight variation
+        base_company = random.choice(REAL_COMPANIES.get(industry, [("Unknown Corp", "UNK")]))
+        return (base_company[0], base_company[1])
 
 
 def generate_loan():
     """Generate a single synthetic loan."""
     loan_id = f"LOAN-{uuid.uuid4().hex[:8].upper()}"
 
-    # Company info
-    company_name = generate_company_name()
+    # Industry first (needed for company selection)
     industry = weighted_choice(INDUSTRIES)
+
+    # Company info - get real company name and ticker
+    company_name, ticker = generate_company_name(industry)
 
     # Geography
     region_data = weighted_choice(REGIONS)
@@ -196,6 +282,7 @@ def generate_loan():
     return {
         "loan_id": loan_id,
         "company_name": company_name,
+        "ticker": ticker,
         "industry": industry,
         "region": region,
         "country": country,
@@ -236,6 +323,7 @@ def create_schema(conn):
         CREATE TABLE IF NOT EXISTS loans (
             loan_id TEXT PRIMARY KEY,
             company_name TEXT NOT NULL,
+            ticker TEXT,
             industry TEXT,
             region TEXT,
             country TEXT,
@@ -347,6 +435,9 @@ def generate_repayment_history(conn, loan):
 
 def seed_data(num_loans=75):
     """Seed the database with synthetic loan data."""
+    global _used_companies
+    _used_companies = set()  # Reset used companies for fresh seeding
+
     print(f"Seeding {num_loans} loans to {DB_PATH}")
 
     conn = sqlite3.connect(DB_PATH)
@@ -364,7 +455,7 @@ def seed_data(num_loans=75):
 
         cursor.execute("""
             INSERT INTO loans (
-                loan_id, company_name, industry, region, country,
+                loan_id, company_name, ticker, industry, region, country,
                 original_balance, outstanding_balance, interest_rate, term_months,
                 purpose, collateral_type, collateral_value,
                 disbursement_date, maturity_date,
@@ -372,9 +463,9 @@ def seed_data(num_loans=75):
                 status, pd_score, lgd_score, risk_grade,
                 annual_revenue, net_income, total_assets, total_liabilities,
                 submitted_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            loan["loan_id"], loan["company_name"], loan["industry"], loan["region"], loan["country"],
+            loan["loan_id"], loan["company_name"], loan["ticker"], loan["industry"], loan["region"], loan["country"],
             loan["original_balance"], loan["outstanding_balance"], loan["interest_rate"], loan["term_months"],
             loan["purpose"], loan["collateral_type"], loan["collateral_value"],
             loan["disbursement_date"], loan["maturity_date"],

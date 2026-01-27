@@ -1,5 +1,5 @@
 # CML Model Deployment Configuration
-# Use this file as reference for deploying PD and LGD models to Cloudera ML
+# Use this file as reference for deploying credit risk models to Cloudera ML
 
 # =============================================================================
 # PD Model Deployment
@@ -84,6 +84,95 @@ lgd_model:
     expected_loss_amount: 450000
 
 # =============================================================================
+# VaR Model Deployment
+# =============================================================================
+var_model:
+  name: "var-model"
+  description: "Value at Risk Model using Monte Carlo Simulation"
+
+  # Entry point configuration
+  script: "cml_serve_var.py"
+  function: "predict"
+
+  # Resource requirements (higher CPU for Monte Carlo)
+  cpu: 2
+  memory: 4  # GB
+
+  # Replicas for load balancing
+  replicas: 2
+
+  # Environment variables
+  environment:
+    MODEL_VERSION: "1.0"
+    LOG_LEVEL: "INFO"
+    VAR_DEFAULT_SIMULATIONS: "100000"
+    VAR_DEFAULT_CONFIDENCE: "0.999"
+    VAR_DEFAULT_CORRELATION: "0.2"
+
+  # Example API request
+  example_request:
+    exposure: 1000000
+    pd: 0.05
+    lgd: 0.45
+    confidence: 0.999
+    simulations: 100000
+    correlation: 0.2
+
+  # Expected response schema
+  response_schema:
+    status: "success"
+    var: 450000.0
+    var_99: 450000.0
+    var_95: 0.0
+    expected_loss: 22500.0
+    expected_shortfall: 450000.0
+    model_version: "1.0"
+    methodology: "Monte_Carlo_Single_Factor"
+
+# =============================================================================
+# Regulatory Capital Model Deployment
+# =============================================================================
+regulatory_capital_model:
+  name: "regulatory-capital-model"
+  description: "Basel IRB Regulatory Capital Calculator"
+
+  # Entry point configuration
+  script: "cml_serve_regulatory_capital.py"
+  function: "predict"
+
+  # Resource requirements
+  cpu: 1
+  memory: 2  # GB
+
+  # Replicas for load balancing
+  replicas: 2
+
+  # Environment variables
+  environment:
+    MODEL_VERSION: "1.0"
+    LOG_LEVEL: "INFO"
+    RC_DEFAULT_MATURITY: "2.5"
+
+  # Example API request
+  example_request:
+    exposure: 1000000
+    pd: 0.05
+    lgd: 0.45
+    maturity: 3.0
+    asset_class: "corporate"
+
+  # Expected response schema
+  response_schema:
+    status: "success"
+    regulatory_capital: 85000.0
+    risk_weighted_assets: 1062500.0
+    capital_requirement_k: 0.085
+    expected_loss: 22500.0
+    capital_ratio: 0.085
+    capital_tier: "ADEQUATELY_CAPITALIZED"
+    methodology: "Basel_IRB_Advanced"
+
+# =============================================================================
 # Deployment Instructions
 # =============================================================================
 #
@@ -109,23 +198,43 @@ lgd_model:
 #    - Enable Authentication: Yes
 #    - Resources: 1 vCPU, 2 GB Memory
 #
-# 4. Deploy Models
+# 4. Create New Model (VaR)
+#    - Name: var-model
+#    - Description: Value at Risk Model (Monte Carlo)
+#    - File: 4_endpoints/cml_serve_var.py
+#    - Function: predict
+#    - Kernel: Python 3
+#    - Enable Authentication: Yes
+#    - Resources: 2 vCPU, 4 GB Memory (higher for Monte Carlo)
+#
+# 5. Create New Model (Regulatory Capital)
+#    - Name: regulatory-capital-model
+#    - Description: Basel IRB Regulatory Capital Calculator
+#    - File: 4_endpoints/cml_serve_regulatory_capital.py
+#    - Function: predict
+#    - Kernel: Python 3
+#    - Enable Authentication: Yes
+#    - Resources: 1 vCPU, 2 GB Memory
+#
+# 6. Deploy Models
 #    - Click Deploy for each model
 #    - Wait for deployment to complete
 #    - Note the endpoint URLs
 #
-# 5. Configure Backend
+# 7. Configure Backend
 #    - Set environment variables:
 #      CML_DEPLOYMENT_MODE=cml
 #      CML_API_URL=<your-cml-workspace-url>
 #      CML_API_KEY=<your-api-key>
 #      CML_PD_MODEL_ENDPOINT=<pd-model-endpoint>
 #      CML_LGD_MODEL_ENDPOINT=<lgd-model-endpoint>
+#      CML_VAR_MODEL_ENDPOINT=<var-model-endpoint>
+#      CML_RC_MODEL_ENDPOINT=<regulatory-capital-model-endpoint>
 #
-# 6. Test Endpoints
+# 8. Test Endpoints
 #    curl -X POST <endpoint-url> \
 #      -H "Authorization: Bearer <api-key>" \
 #      -H "Content-Type: application/json" \
-#      -d '{"request": {"debt_to_equity": 1.5, ...}}'
+#      -d '{"request": {"exposure": 1000000, "pd": 0.05, "lgd": 0.45}}'
 #
 # =============================================================================
