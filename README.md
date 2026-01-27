@@ -57,6 +57,11 @@ Upload this project to CML and it will auto-deploy via `.project-metadata.yaml`.
 ### 2. Manual Setup
 
 ```bash
+# Install CDE CLI (for Spark job deployment)
+mkdir -p ~/.local/bin
+mv cde ~/.local/bin/cde-cli
+chmod +x ~/.local/bin/cde-cli
+
 # Install dependencies
 python 0_setup/install_dependencies.py
 

@@ -11,6 +11,8 @@ import json
 import logging
 import subprocess
 import shutil
+import time
+import requests
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -22,6 +24,9 @@ PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 # Find CDE CLI binary
 CDE_CLI_PATH = shutil.which("cde-cli") or os.path.expanduser("~/.local/bin/cde-cli")
 
+# Token cache
+_token_cache = {"token": None, "expires_at": 0}
+
 
 class CDEConfig:
     """CDE configuration from environment variables."""
@@ -31,39 +36,90 @@ class CDEConfig:
         self.virtual_cluster = os.environ.get("CDE_VIRTUAL_CLUSTER", "")
         self.resource_name = os.environ.get("CDE_RESOURCE_NAME", "credit-risk-jobs")
 
-        # CDP credentials for authentication
-        self.cdp_access_key_id = os.environ.get("CDP_ACCESS_KEY_ID", "")
-        self.cdp_private_key = os.environ.get("CDP_PRIVATE_KEY", "")
-
         # Iceberg/Spark settings
         self.warehouse_dir = os.environ.get("SPARK_WAREHOUSE_DIR", "")
         self.iceberg_database = os.environ.get("SPARK_ICEBERG_DATABASE", "credit_risk")
 
     @property
+    def has_cdp_credentials(self) -> bool:
+        """Check if CDP credentials are available in environment."""
+        return bool(
+            os.environ.get("CDP_ACCESS_KEY_ID") and
+            os.environ.get("CDP_PRIVATE_KEY")
+        )
+
+    @property
     def is_configured(self) -> bool:
         """Check if CDE is properly configured."""
         has_api = bool(self.api_url and self.virtual_cluster)
-        has_auth = bool(self.cdp_access_key_id and self.cdp_private_key)
         has_cli = os.path.exists(CDE_CLI_PATH)
-        return has_api and has_auth and has_cli
+        return has_api and self.has_cdp_credentials and has_cli
 
     def __repr__(self):
-        return f"CDEConfig(api_url={self.api_url}, vc={self.virtual_cluster}, has_credentials={bool(self.cdp_access_key_id)}, configured={self.is_configured})"
+        return f"CDEConfig(api_url={self.api_url}, vc={self.virtual_cluster}, has_credentials={self.has_cdp_credentials}, configured={self.is_configured})"
 
 
 class CDEClient:
-    """Client for interacting with CDE using the official CDE CLI."""
+    """Client for interacting with CDE using token-based authentication."""
 
     def __init__(self, config: Optional[CDEConfig] = None):
         self.config = config or CDEConfig()
+        self._token = None
+        self._token_expires_at = 0
+
+    def _get_cde_token(self) -> str:
+        """Retrieve CDE access token using CDP credentials from environment variables."""
+        global _token_cache
+
+        # Check if we have a valid cached token
+        current_time = time.time()
+        if _token_cache["token"] and _token_cache["expires_at"] > current_time + 60:
+            return _token_cache["token"]
+
+        # Get CDP credentials from environment
+        access_key = os.environ.get("CDP_ACCESS_KEY_ID")
+        private_key = os.environ.get("CDP_PRIVATE_KEY")
+
+        if not access_key or not private_key:
+            raise RuntimeError(
+                "CDP credentials not found in environment. "
+                "Set CDP_ACCESS_KEY_ID and CDP_PRIVATE_KEY environment variables."
+            )
+
+        # Request token from CDE API
+        token_url = f"{self.config.api_url}/gateway/authtkn/knoxtoken/api/v1/token"
+        try:
+            response = requests.get(
+                token_url,
+                auth=(access_key, private_key),
+                timeout=30
+            )
+            response.raise_for_status()
+            token_data = response.json()
+            token = token_data.get("access_token")
+
+            if not token:
+                raise RuntimeError(f"No access_token in response: {token_data}")
+
+            # Cache the token (default 1 hour expiry)
+            expires_in = token_data.get("expires_in", 3600)
+            _token_cache["token"] = token
+            _token_cache["expires_at"] = current_time + expires_in
+
+            logger.debug("Successfully retrieved CDE access token")
+            return token
+
+        except requests.RequestException as e:
+            raise RuntimeError(f"Failed to retrieve CDE token: {e}")
 
     def _run_cde_cli(self, args: List[str], check: bool = True) -> subprocess.CompletedProcess:
-        """Run a CDE CLI command with authentication."""
+        """Run a CDE CLI command with token-based authentication."""
+        token = self._get_cde_token()
+
         cmd = [
             CDE_CLI_PATH,
             "--vcluster-endpoint", self.config.api_url,
-            "--access-key-id", self.config.cdp_access_key_id,
-            "--access-key-secret", self.config.cdp_private_key,
+            "--access-token", token,
         ] + args
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -377,11 +433,13 @@ def main():
 
     if command == "check":
         config = CDEConfig()
+        access_key = os.environ.get("CDP_ACCESS_KEY_ID", "")
+        private_key = os.environ.get("CDP_PRIVATE_KEY", "")
         print(f"CDE Configured: {config.is_configured}")
         print(f"  API URL: {config.api_url or '(not set)'}")
         print(f"  Virtual Cluster: {config.virtual_cluster or '(not set)'}")
-        print(f"  CDP Access Key: {'***' + config.cdp_access_key_id[-4:] if config.cdp_access_key_id else '(not set)'}")
-        print(f"  CDP Private Key: {'configured' if config.cdp_private_key else '(not set)'}")
+        print(f"  CDP Access Key: {'***' + access_key[-4:] if access_key else '(not set)'}")
+        print(f"  CDP Private Key: {'configured' if private_key else '(not set)'}")
         print(f"  Resource Name: {config.resource_name}")
         print(f"  Warehouse Dir: {config.warehouse_dir or '(not set)'}")
 
