@@ -67,33 +67,47 @@ def load_features_local() -> pd.DataFrame:
 
 
 def load_features_iceberg() -> pd.DataFrame:
-    """Load feature matrix from Iceberg tables via Spark."""
-    try:
-        from pyspark.sql import SparkSession
-    except ImportError:
-        print("[ERROR] PySpark not available for Iceberg mode")
-        return None
+    """Load feature matrix from cloud storage (S3/ADLS).
 
+    Tries multiple methods:
+    1. PySpark (if available in CML runtime)
+    2. Direct pandas read with pyarrow/s3fs (no Spark required)
+    """
     warehouse_path = os.environ.get("SPARK_WAREHOUSE_DIR")
     if not warehouse_path:
         print("[ERROR] SPARK_WAREHOUSE_DIR is required for Iceberg mode")
         return None
 
     features_path = f"{warehouse_path}/features"
-    print(f"[INFO] Loading features from Iceberg: {features_path}")
+    print(f"[INFO] Loading features from: {features_path}")
 
-    spark = SparkSession.builder \
-        .appName("Model_Validation") \
-        .config("spark.sql.adaptive.enabled", "true") \
-        .getOrCreate()
-
+    # Try Spark first
     try:
+        from pyspark.sql import SparkSession
+        print("[INFO] Using PySpark to read features...")
+
+        spark = SparkSession.builder \
+            .appName("Model_Validation") \
+            .config("spark.sql.adaptive.enabled", "true") \
+            .getOrCreate()
+
         spark_df = spark.read.parquet(features_path)
         df = spark_df.toPandas()
-        print(f"[INFO] Loaded {len(df)} observations from Iceberg")
+        print(f"[INFO] Loaded {len(df)} observations via Spark")
+        return df
+
+    except ImportError:
+        print("[INFO] PySpark not available, trying direct pandas read...")
+    except Exception as e:
+        print(f"[WARN] Spark read failed: {e}, trying pandas...")
+
+    # Fallback: Direct pandas read
+    try:
+        df = pd.read_parquet(features_path)
+        print(f"[INFO] Loaded {len(df)} observations via pandas")
         return df
     except Exception as e:
-        print(f"[ERROR] Failed to load features from Iceberg: {e}")
+        print(f"[ERROR] Failed to load features: {e}")
         return None
 
 

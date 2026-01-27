@@ -76,14 +76,12 @@ def load_features_local(config: dict) -> pd.DataFrame:
 
 
 def load_features_iceberg(config: dict) -> pd.DataFrame:
-    """Load feature matrix from Iceberg tables via Spark."""
-    try:
-        from pyspark.sql import SparkSession
-    except ImportError:
-        print("\n[ERROR] PySpark not available for Iceberg mode")
-        print("Please install pyspark or use DATA_STORAGE_MODE=local")
-        sys.exit(1)
+    """Load feature matrix from cloud storage (S3/ADLS).
 
+    Tries multiple methods:
+    1. PySpark (if available in CML runtime)
+    2. Direct pandas read with pyarrow/s3fs (no Spark required)
+    """
     warehouse_path = os.environ.get("SPARK_WAREHOUSE_DIR")
     if not warehouse_path:
         print("\n[ERROR] SPARK_WAREHOUSE_DIR is required for Iceberg mode")
@@ -91,33 +89,45 @@ def load_features_iceberg(config: dict) -> pd.DataFrame:
         sys.exit(1)
 
     features_path = f"{warehouse_path}/features"
-    print(f"\n[INFO] Loading features from Iceberg: {features_path}")
+    print(f"\n[INFO] Loading features from: {features_path}")
 
-    # Create Spark session (uses existing CML Spark config)
-    spark = SparkSession.builder \
-        .appName("PD_Model_Training") \
-        .config("spark.sql.adaptive.enabled", "true") \
-        .getOrCreate()
-
+    # Try Spark first (preferred for large datasets)
     try:
-        # Read features from Iceberg/parquet
+        from pyspark.sql import SparkSession
+        print("[INFO] Using PySpark to read features...")
+
+        spark = SparkSession.builder \
+            .appName("PD_Model_Training") \
+            .config("spark.sql.adaptive.enabled", "true") \
+            .getOrCreate()
+
         spark_df = spark.read.parquet(features_path)
         record_count = spark_df.count()
-        print(f"[INFO] Found {record_count} records in Iceberg")
+        print(f"[INFO] Found {record_count} records")
 
-        # Convert to pandas for sklearn training
         df = spark_df.toPandas()
-        print(f"[INFO] Loaded {len(df)} observations from Iceberg")
+        print(f"[INFO] Loaded {len(df)} observations via Spark")
+        return df
 
+    except ImportError:
+        print("[INFO] PySpark not available, trying direct pandas read...")
+    except Exception as e:
+        print(f"[WARN] Spark read failed: {e}, trying pandas...")
+
+    # Fallback: Direct pandas read (works for S3 with pyarrow/s3fs)
+    try:
+        # pandas can read S3 paths directly if pyarrow or s3fs is installed
+        df = pd.read_parquet(features_path)
+        print(f"[INFO] Loaded {len(df)} observations via pandas")
         return df
     except Exception as e:
-        print(f"\n[ERROR] Failed to load features from Iceberg: {e}")
+        print(f"\n[ERROR] Failed to load features: {e}")
         print(f"  Path: {features_path}")
-        print("  Please ensure feature engineering job has completed")
+        print("\nTroubleshooting:")
+        print("  1. Use a CML Runtime with Spark enabled, OR")
+        print("  2. Install s3fs: pip install s3fs")
+        print("  3. Ensure AWS credentials are configured")
         sys.exit(1)
-    finally:
-        # Don't stop Spark session as it may be shared in CML
-        pass
 
 
 def load_features(config: dict) -> pd.DataFrame:
