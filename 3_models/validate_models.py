@@ -106,9 +106,20 @@ def load_features() -> pd.DataFrame:
     print(f"[INFO] Data storage mode: {DATA_STORAGE_MODE}")
 
     if DATA_STORAGE_MODE in ("iceberg", "cde", "spark"):
-        return load_features_iceberg()
+        df = load_features_iceberg()
     else:
-        return load_features_local()
+        df = load_features_local()
+
+    if df is None:
+        return None
+
+    # Compute LGD if missing but source columns available
+    if "lgd" not in df.columns or df["lgd"].isna().all():
+        if "loss_amount" in df.columns and "loan_amount" in df.columns:
+            print("[INFO] Computing LGD from loss_amount / loan_amount...")
+            df["lgd"] = (df["loss_amount"] / df["loan_amount"].replace(0, float('nan'))).clip(0, 1)
+
+    return df
 
 
 def load_features_local() -> pd.DataFrame:
