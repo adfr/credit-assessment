@@ -11,8 +11,6 @@ import json
 import logging
 import subprocess
 import shutil
-import time
-import requests
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -23,9 +21,6 @@ PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 
 # Find CDE CLI binary
 CDE_CLI_PATH = shutil.which("cde-cli") or os.path.expanduser("~/.local/bin/cde-cli")
-
-# Token cache
-_token_cache = {"token": None, "expires_at": 0}
 
 
 class CDEConfig:
@@ -60,23 +55,13 @@ class CDEConfig:
 
 
 class CDEClient:
-    """Client for interacting with CDE using token-based authentication."""
+    """Client for interacting with CDE using CDP credentials from environment."""
 
     def __init__(self, config: Optional[CDEConfig] = None):
         self.config = config or CDEConfig()
-        self._token = None
-        self._token_expires_at = 0
 
-    def _get_cde_token(self) -> str:
-        """Retrieve CDE access token using CDP credentials from environment variables."""
-        global _token_cache
-
-        # Check if we have a valid cached token
-        current_time = time.time()
-        if _token_cache["token"] and _token_cache["expires_at"] > current_time + 60:
-            return _token_cache["token"]
-
-        # Get CDP credentials from environment
+    def _get_credentials(self) -> tuple:
+        """Get CDP credentials from environment variables."""
         access_key = os.environ.get("CDP_ACCESS_KEY_ID")
         private_key = os.environ.get("CDP_PRIVATE_KEY")
 
@@ -85,41 +70,17 @@ class CDEClient:
                 "CDP credentials not found in environment. "
                 "Set CDP_ACCESS_KEY_ID and CDP_PRIVATE_KEY environment variables."
             )
-
-        # Request token from CDE API
-        token_url = f"{self.config.api_url}/gateway/authtkn/knoxtoken/api/v1/token"
-        try:
-            response = requests.get(
-                token_url,
-                auth=(access_key, private_key),
-                timeout=30
-            )
-            response.raise_for_status()
-            token_data = response.json()
-            token = token_data.get("access_token")
-
-            if not token:
-                raise RuntimeError(f"No access_token in response: {token_data}")
-
-            # Cache the token (default 1 hour expiry)
-            expires_in = token_data.get("expires_in", 3600)
-            _token_cache["token"] = token
-            _token_cache["expires_at"] = current_time + expires_in
-
-            logger.debug("Successfully retrieved CDE access token")
-            return token
-
-        except requests.RequestException as e:
-            raise RuntimeError(f"Failed to retrieve CDE token: {e}")
+        return access_key, private_key
 
     def _run_cde_cli(self, args: List[str], check: bool = True) -> subprocess.CompletedProcess:
-        """Run a CDE CLI command with token-based authentication."""
-        token = self._get_cde_token()
+        """Run a CDE CLI command with CDP credentials from environment."""
+        access_key, private_key = self._get_credentials()
 
         cmd = [
             CDE_CLI_PATH,
             "--vcluster-endpoint", self.config.api_url,
-            "--access-token", token,
+            "--access-key-id", access_key,
+            "--access-key-secret", private_key,
         ] + args
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
