@@ -84,7 +84,7 @@ def load_loans(spark):
     df = df.withColumn("origination_year", year("origination_date"))
     df = df.withColumn("_loaded_at", current_timestamp())
 
-    output_path = f"{OUTPUT_PATH}/loans"
+    output_path = f"{OUTPUT_PATH}/loan_history"
 
     df.write \
         .mode("overwrite") \
@@ -165,7 +165,7 @@ def show_summary(spark):
     print("Data Summary")
     print("=" * 60)
 
-    tables = ["companies", "loans", "bureau_data", "payment_history"]
+    tables = ["companies", "loan_history", "bureau_data", "payment_history"]
 
     for table in tables:
         path = f"{OUTPUT_PATH}/{table}"
@@ -217,7 +217,7 @@ def main():
         print(f"\nData available at: {OUTPUT_PATH}/")
         print("\nQuery examples:")
         print(f"  spark.read.parquet('{OUTPUT_PATH}/companies')")
-        print(f"  spark.read.parquet('{OUTPUT_PATH}/loans')")
+        print(f"  spark.read.parquet('{OUTPUT_PATH}/loan_history')")
 
     except Exception as e:
         print(f"\n[ERROR] Failed to load data: {e}")

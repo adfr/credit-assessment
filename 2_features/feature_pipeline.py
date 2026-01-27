@@ -510,7 +510,8 @@ def run_cde_mode():
         client = CDEClient()
 
         # Run feature engineering job (job must already exist in CDE)
-        input_path = f"{warehouse_path}/raw"
+        # Data is stored directly in warehouse_path (companies, loan_history, etc.)
+        input_path = warehouse_path
         output_path = f"{warehouse_path}/features"
         job_name = "credit-risk-feature-engineering"
 

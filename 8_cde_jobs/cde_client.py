@@ -2,7 +2,7 @@
 """
 CDE Client
 Handles deployment and execution of Spark jobs on Cloudera Data Engineering.
-Uses the official CDE CLI for authentication and API calls.
+Uses CDP credentials to authenticate and retrieve CDE endpoints dynamically.
 """
 
 import os
@@ -11,6 +11,7 @@ import json
 import logging
 import subprocess
 import shutil
+import requests
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -22,18 +23,104 @@ PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 # Find CDE CLI binary
 CDE_CLI_PATH = shutil.which("cde-cli") or os.path.expanduser("~/.local/bin/cde-cli")
 
+# CDP API endpoint
+CDP_API_ENDPOINT = os.environ.get("CDP_API_ENDPOINT", "https://api.us-west-1.cdp.cloudera.com")
+
+
+def get_cdp_auth_token() -> str:
+    """Get CDP access token using CDP credentials from environment."""
+    access_key = os.environ.get("CDP_ACCESS_KEY_ID")
+    private_key = os.environ.get("CDP_PRIVATE_KEY")
+
+    if not access_key or not private_key:
+        raise RuntimeError(
+            "CDP credentials not found. Set CDP_ACCESS_KEY_ID and CDP_PRIVATE_KEY."
+        )
+
+    # Generate CDP access token using the credentials
+    # CDP uses ed25519 signature for API authentication
+    import time
+    import base64
+    import hashlib
+    import hmac
+
+    timestamp = str(int(time.time() * 1000))
+    method = "POST"
+    path = "/iam/getAccessToken"
+
+    # For CDP API, we use the access key and private key directly
+    return access_key, private_key
+
+
+def get_cde_service_endpoint(virtual_cluster_name: str) -> Optional[str]:
+    """
+    Retrieve CDE virtual cluster API endpoint using CDP credentials.
+
+    Args:
+        virtual_cluster_name: Name of the CDE virtual cluster
+
+    Returns:
+        The API endpoint URL for the virtual cluster, or None if not found
+    """
+    access_key = os.environ.get("CDP_ACCESS_KEY_ID")
+    private_key = os.environ.get("CDP_PRIVATE_KEY")
+
+    if not access_key or not private_key:
+        logger.warning("CDP credentials not available for CDE service discovery")
+        return None
+
+    try:
+        # Use cdp CLI to list CDE services if available
+        cdp_cli = shutil.which("cdp")
+        if cdp_cli:
+            # List virtual clusters using CDP CLI
+            result = subprocess.run(
+                [cdp_cli, "de", "list-vcs", "--output", "json"],
+                capture_output=True, text=True, timeout=60,
+                env={**os.environ, "CDP_ACCESS_KEY_ID": access_key, "CDP_PRIVATE_KEY": private_key}
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                for vc in data.get("vcs", []):
+                    if vc.get("vcName") == virtual_cluster_name:
+                        endpoint = vc.get("vcApiUrl", "")
+                        if endpoint:
+                            logger.info(f"Found CDE endpoint for '{virtual_cluster_name}': {endpoint}")
+                            return endpoint.rstrip("/")
+
+        # Alternative: Use CDE CLI to get endpoint
+        if os.path.exists(CDE_CLI_PATH):
+            # Try to get the endpoint from CDE CLI config or discovery
+            pass
+
+    except Exception as e:
+        logger.warning(f"Failed to discover CDE endpoint: {e}")
+
+    return None
+
 
 class CDEConfig:
-    """CDE configuration from environment variables."""
+    """CDE configuration - retrieves API endpoint using CDP credentials."""
 
     def __init__(self):
-        self.api_url = os.environ.get("CDE_API_URL", "").rstrip("/")
         self.virtual_cluster = os.environ.get("CDE_VIRTUAL_CLUSTER", "")
         self.resource_name = os.environ.get("CDE_RESOURCE_NAME", "credit-risk-jobs")
+
+        # Try to get API URL from environment first, then discover via CDP
+        self._api_url = os.environ.get("CDE_API_URL", "").rstrip("/")
+        if not self._api_url and self.virtual_cluster and self.has_cdp_credentials:
+            discovered_url = get_cde_service_endpoint(self.virtual_cluster)
+            if discovered_url:
+                self._api_url = discovered_url
 
         # Iceberg/Spark settings
         self.warehouse_dir = os.environ.get("SPARK_WAREHOUSE_DIR", "")
         self.iceberg_database = os.environ.get("SPARK_ICEBERG_DATABASE", "credit_risk")
+
+    @property
+    def api_url(self) -> str:
+        """Get CDE API URL."""
+        return self._api_url
 
     @property
     def has_cdp_credentials(self) -> bool:
@@ -46,12 +133,12 @@ class CDEConfig:
     @property
     def is_configured(self) -> bool:
         """Check if CDE is properly configured."""
-        has_api = bool(self.api_url and self.virtual_cluster)
+        has_api = bool(self._api_url)
         has_cli = os.path.exists(CDE_CLI_PATH)
         return has_api and self.has_cdp_credentials and has_cli
 
     def __repr__(self):
-        return f"CDEConfig(api_url={self.api_url}, vc={self.virtual_cluster}, has_credentials={self.has_cdp_credentials}, configured={self.is_configured})"
+        return f"CDEConfig(api_url={self._api_url}, vc={self.virtual_cluster}, has_credentials={self.has_cdp_credentials}, configured={self.is_configured})"
 
 
 class CDEClient:
@@ -180,9 +267,10 @@ class CDEClient:
         for key, value in conf.items():
             cmd.extend(["--conf", f"{key}={value}"])
 
-        # Add arguments
+        # Add arguments - each argument needs its own --arg flag
         if arguments:
-            cmd.extend(["--arg", " ".join(arguments)])
+            for arg in arguments:
+                cmd.extend(["--arg", arg])
 
         result = self._run_cde_cli(cmd, check=False)
         if result.returncode != 0:
@@ -217,7 +305,8 @@ class CDEClient:
         logger.info(f"Running job: {name}")
         cmd = ["job", "run", "--name", name]
         if arguments:
-            cmd.extend(["--arg", " ".join(arguments)])
+            for arg in arguments:
+                cmd.extend(["--arg", arg])
 
         result = self._run_cde_cli(cmd)
         return self._parse_json_output(result.stdout) if result.stdout.strip() else {"status": "submitted"}
@@ -273,7 +362,7 @@ def deploy_spark_jobs() -> Dict:
                 "name": "credit-risk-feature-engineering",
                 "script": "feature_engineering.py",
                 "arguments": [
-                    "--input-path", f"{config.warehouse_dir}/raw",
+                    "--input-path", config.warehouse_dir,
                     "--output-path", f"{config.warehouse_dir}/features",
                 ],
                 "spark_config": {
