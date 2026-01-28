@@ -72,6 +72,59 @@ export default function ArchitecturePage() {
     },
   ];
 
+  const mlModels = [
+    {
+      name: "PD Model",
+      fullName: "Probability of Default",
+      type: "Classification",
+      algorithm: "XGBoost",
+      file: "pd_model_latest.pkl",
+      path: "/models/pd/",
+      desc: "Predicts likelihood of borrower default within 12 months",
+      metrics: { "AUC-ROC": "0.85", "Gini": "0.70", "KS": "0.52" },
+    },
+    {
+      name: "LGD Model",
+      fullName: "Loss Given Default",
+      type: "Regression",
+      algorithm: "Gradient Boosting",
+      file: "lgd_model_latest.pkl",
+      path: "/models/lgd/",
+      desc: "Estimates loss percentage if default occurs",
+      metrics: { "MAE": "0.08", "RMSE": "0.12", "R²": "0.72" },
+    },
+  ];
+
+  const capitalModels = [
+    {
+      name: "Basel IRB",
+      fullName: "Basel Internal Ratings-Based Approach",
+      type: "Regulatory Capital",
+      desc: "Calculates Risk-Weighted Assets and Regulatory Capital per Basel III standards",
+      inputs: ["PD", "LGD", "EAD", "Maturity"],
+      outputs: ["RWA", "Regulatory Capital (8% of RWA)", "Expected Loss"],
+      formula: "K = LGD × N[(1-R)^-0.5 × G(PD) + (R/(1-R))^0.5 × G(0.999)] - PD × LGD",
+    },
+    {
+      name: "VaR Monte Carlo",
+      fullName: "Value at Risk - Monte Carlo Simulation",
+      type: "Economic Capital",
+      desc: "Estimates portfolio loss distribution using 100,000 correlated default simulations",
+      inputs: ["PD", "LGD", "EAD", "Correlation Matrix"],
+      outputs: ["VaR 99%", "VaR 99.9%", "Expected Shortfall (CVaR)", "Economic Capital"],
+      formula: "EC = VaR(99.9%) - Expected Loss",
+    },
+    {
+      name: "ECL Calculator",
+      fullName: "Expected Credit Loss",
+      type: "IFRS 9 Provisioning",
+      desc: "Calculates loan loss provisions under IFRS 9 accounting standards",
+      inputs: ["PD", "LGD", "EAD", "Stage Classification"],
+      outputs: ["12-month ECL", "Lifetime ECL", "Stage Allocation"],
+      formula: "ECL = PD × LGD × EAD × Discount Factor",
+    },
+  ];
+
   const apiEndpoints = [
     { method: "POST", path: "/api/score", desc: "Real-time PD/LGD scoring" },
     { method: "GET", path: "/api/portfolio", desc: "Portfolio analytics" },
@@ -79,27 +132,31 @@ export default function ArchitecturePage() {
     { method: "POST", path: "/api/applications", desc: "New loan applications" },
     { method: "POST", path: "/api/analyst", desc: "AI Assistant queries" },
     { method: "GET", path: "/api/models/metrics", desc: "Model performance" },
+    { method: "GET", path: "/api/capital/summary", desc: "Capital calculations" },
     { method: "WS", path: "/ws/analyst", desc: "Streaming AI responses" },
   ];
 
-  const applications = [
+  const cmlApplications = [
     {
       name: "Credit Risk Frontend",
-      tech: "Next.js / React",
-      desc: "Dashboard, portfolio management, loan applications",
-      features: ["Dashboard analytics", "Portfolio browser", "Loan details", "AI Assistant"],
+      tech: "Next.js 14 / React / Tailwind",
+      port: "3000",
+      desc: "Interactive dashboard for credit analysis and portfolio management",
+      features: ["Dashboard analytics", "Portfolio browser", "Loan details", "AI Assistant", "Architecture view"],
     },
     {
       name: "FastAPI Backend",
-      tech: "Python / FastAPI",
-      desc: "REST API for scoring and analytics",
-      features: ["Real-time scoring", "Portfolio queries", "Model serving", "WebSocket support"],
+      tech: "Python / FastAPI / Pydantic",
+      port: "8000",
+      desc: "REST API serving ML models and business logic",
+      features: ["Real-time scoring", "Portfolio queries", "Capital calculations", "WebSocket support"],
     },
     {
       name: "AI Credit Analyst",
-      tech: "LangGraph / Claude",
-      desc: "Intelligent assistant for credit analysis",
-      features: ["Natural language queries", "Risk explanations", "Portfolio insights", "Regulatory guidance"],
+      tech: "LangGraph / Claude API",
+      port: "8000",
+      desc: "Intelligent assistant for natural language credit analysis",
+      features: ["Natural language queries", "Risk explanations", "Portfolio insights", "Document RAG"],
     },
   ];
 
@@ -134,17 +191,6 @@ export default function ArchitecturePage() {
     { tool: "search_documents", desc: "RAG over 10-K filings" },
   ];
 
-  const riskGrades = [
-    { grade: "AAA", range: "0.0% - 0.5%", color: "bg-green-100 text-green-800" },
-    { grade: "AA", range: "0.5% - 1.0%", color: "bg-green-100 text-green-700" },
-    { grade: "A", range: "1.0% - 2.0%", color: "bg-green-50 text-green-700" },
-    { grade: "BBB", range: "2.0% - 5.0%", color: "bg-yellow-50 text-yellow-700" },
-    { grade: "BB", range: "5.0% - 10.0%", color: "bg-yellow-100 text-yellow-800" },
-    { grade: "B", range: "10.0% - 20.0%", color: "bg-orange-100 text-orange-800" },
-    { grade: "CCC", range: "20.0% - 50.0%", color: "bg-red-100 text-red-700" },
-    { grade: "D", range: "50.0% - 100.0%", color: "bg-red-200 text-red-800" },
-  ];
-
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -160,7 +206,7 @@ export default function ArchitecturePage() {
             { id: "pipeline", label: "Data Pipeline" },
             { id: "training", label: "Model Training" },
             { id: "serving", label: "Model Serving" },
-            { id: "apps", label: "Applications" },
+            { id: "apps", label: "Cloudera AI" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -233,16 +279,18 @@ export default function ArchitecturePage() {
                   </div>
                 </div>
 
-                {/* Spark Data Loading */}
+                {/* CDE Spark Jobs */}
                 <div className="flex justify-center mb-4">
-                  <div className="bg-orange-50 border-2 border-orange-200 rounded-lg px-6 py-3">
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-medium text-orange-800">Data Loading (CDE Spark)</span>
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 w-full max-w-3xl">
+                    <p className="text-sm font-medium text-orange-800 text-center mb-3">CLOUDERA DATA ENGINEERING (CDE)</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {sparkJobs.map((job) => (
+                        <div key={job.name} className="bg-white rounded p-2 text-center border border-orange-100">
+                          <p className="font-medium text-sm">{job.name}</p>
+                          <p className="text-xs text-gray-500">{job.file}</p>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-xs text-orange-600 text-center mt-1">load_to_iceberg.py</p>
                   </div>
                 </div>
 
@@ -263,7 +311,7 @@ export default function ArchitecturePage() {
                       <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                       </svg>
-                      <p className="text-sm font-medium text-green-800">S3 DATA WAREHOUSE (Iceberg)</p>
+                      <p className="text-sm font-medium text-green-800">S3 DATA LAKE (Iceberg)</p>
                     </div>
                     <div className="grid grid-cols-6 gap-2">
                       {icebergTables.map((t) => (
@@ -286,185 +334,66 @@ export default function ArchitecturePage() {
                   </div>
                 </div>
 
-                {/* Feature Engineering */}
-                <div className="flex justify-center mb-4">
-                  <div className="bg-orange-50 border-2 border-orange-200 rounded-lg px-6 py-3">
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-medium text-orange-800">Feature Engineering (CDE Spark)</span>
-                      <Badge className="bg-orange-100 text-orange-700">Daily @ 1:00 AM</Badge>
-                    </div>
-                    <p className="text-xs text-orange-600 text-center mt-1">feature_engineering.py - Creates 23+ features</p>
-                  </div>
-                </div>
-
-                {/* Branching Arrow */}
-                <div className="flex justify-center mb-4">
-                  <div className="w-0.5 h-6 bg-gray-400"></div>
-                </div>
-
-                {/* Three branches: PD Training, LGD Training, Batch Scoring */}
-                <div className="grid grid-cols-3 gap-4 mb-4 max-w-4xl mx-auto">
-                  <div className="flex flex-col items-center">
-                    <div className="w-0.5 h-4 bg-gray-400 mb-2"></div>
-                    <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-3 w-full">
-                      <div className="flex items-center justify-center space-x-2 mb-2">
-                        <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        <span className="font-medium text-purple-800 text-sm">PD Training</span>
-                      </div>
-                      <p className="text-xs text-purple-600 text-center">CML Job</p>
-                      <p className="text-xs text-gray-500 text-center mt-1">XGBoost, GBM, LR</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="w-0.5 h-4 bg-gray-400 mb-2"></div>
-                    <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-3 w-full">
-                      <div className="flex items-center justify-center space-x-2 mb-2">
-                        <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        <span className="font-medium text-purple-800 text-sm">LGD Training</span>
-                      </div>
-                      <p className="text-xs text-purple-600 text-center">CML Job</p>
-                      <p className="text-xs text-gray-500 text-center mt-1">Gradient Boosting</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="w-0.5 h-4 bg-gray-400 mb-2"></div>
-                    <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-3 w-full">
-                      <div className="flex items-center justify-center space-x-2 mb-2">
-                        <svg className="w-4 h-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                        </svg>
-                        <span className="font-medium text-orange-800 text-sm">Batch Scoring</span>
-                      </div>
-                      <p className="text-xs text-orange-600 text-center">CDE Spark</p>
-                      <p className="text-xs text-gray-500 text-center mt-1">Daily @ 2:00 AM</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Arrows to Models and Scores */}
-                <div className="grid grid-cols-3 gap-4 mb-4 max-w-4xl mx-auto">
-                  <div className="flex flex-col items-center col-span-2">
-                    <div className="w-0.5 h-6 bg-gray-400"></div>
-                    <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="w-0.5 h-6 bg-gray-400"></div>
-                    <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Models and Scores Storage */}
-                <div className="grid grid-cols-3 gap-4 mb-4 max-w-4xl mx-auto">
-                  <div className="col-span-2 bg-indigo-50 border-2 border-indigo-200 rounded-lg p-3">
-                    <div className="flex items-center justify-center space-x-2 mb-2">
-                      <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
-                      <p className="font-medium text-indigo-800 text-sm">S3 Model Storage</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-white rounded p-2 text-center border border-indigo-100">
-                        <p className="font-medium text-xs">pd_model_latest.pkl</p>
-                        <p className="text-xs text-gray-500">/models/pd/</p>
-                      </div>
-                      <div className="bg-white rounded p-2 text-center border border-indigo-100">
-                        <p className="font-medium text-xs">lgd_model_latest.pkl</p>
-                        <p className="text-xs text-gray-500">/models/lgd/</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-green-50 border-2 border-green-200 rounded-lg p-3">
-                    <div className="flex items-center justify-center space-x-2 mb-2">
-                      <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p className="font-medium text-green-800 text-sm">Scores</p>
-                    </div>
-                    <div className="bg-white rounded p-2 text-center border border-green-100">
-                      <p className="font-medium text-xs">/scores/</p>
-                      <p className="text-xs text-gray-500">by scoring_date</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Arrow to API */}
-                <div className="flex justify-center mb-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-0.5 h-6 bg-gray-400"></div>
-                    <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* API and Frontend */}
+                {/* Cloudera AI (CML) - Two columns: Models and Applications */}
                 <div className="flex justify-center">
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 w-full max-w-3xl">
-                    <p className="text-sm font-medium text-blue-800 text-center mb-3">CML APPLICATION</p>
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="bg-white rounded p-3 text-center border border-blue-100">
-                        <svg className="w-6 h-6 text-blue-600 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        <p className="font-medium text-sm">Frontend</p>
-                        <p className="text-xs text-gray-500">Next.js / React</p>
+                  <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 w-full max-w-5xl">
+                    <p className="text-sm font-medium text-purple-800 text-center mb-4">CLOUDERA AI (CML)</p>
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* CML Models */}
+                      <div className="bg-white rounded-lg p-4 border border-purple-200">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                          <p className="font-medium text-purple-900">CML Models</p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="bg-purple-50 rounded p-2 border border-purple-100">
+                            <p className="font-medium text-xs">PD Model (XGBoost)</p>
+                            <p className="text-xs text-gray-500">Probability of Default</p>
+                          </div>
+                          <div className="bg-purple-50 rounded p-2 border border-purple-100">
+                            <p className="font-medium text-xs">LGD Model (Gradient Boosting)</p>
+                            <p className="text-xs text-gray-500">Loss Given Default</p>
+                          </div>
+                          <div className="bg-indigo-50 rounded p-2 border border-indigo-100">
+                            <p className="font-medium text-xs">Basel IRB Capital</p>
+                            <p className="text-xs text-gray-500">RWA & Regulatory Capital</p>
+                          </div>
+                          <div className="bg-indigo-50 rounded p-2 border border-indigo-100">
+                            <p className="font-medium text-xs">VaR Monte Carlo</p>
+                            <p className="text-xs text-gray-500">Economic Capital</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-white rounded p-3 text-center border border-blue-100">
-                        <svg className="w-6 h-6 text-blue-600 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                        </svg>
-                        <p className="font-medium text-sm">API</p>
-                        <p className="text-xs text-gray-500">FastAPI</p>
-                      </div>
-                      <div className="bg-white rounded p-3 text-center border border-blue-100">
-                        <svg className="w-6 h-6 text-blue-600 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                        </svg>
-                        <p className="font-medium text-sm">Models</p>
-                        <p className="text-xs text-gray-500">PD + LGD</p>
-                      </div>
-                      <div className="bg-white rounded p-3 text-center border border-blue-100">
-                        <svg className="w-6 h-6 text-blue-600 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                        </svg>
-                        <p className="font-medium text-sm">AI Assistant</p>
-                        <p className="text-xs text-gray-500">LangGraph</p>
+
+                      {/* CML Applications */}
+                      <div className="bg-white rounded-lg p-4 border border-purple-200">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <p className="font-medium text-blue-900">CML Applications</p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="bg-blue-50 rounded p-2 border border-blue-100">
+                            <p className="font-medium text-xs">FastAPI Backend</p>
+                            <p className="text-xs text-gray-500">REST API & Model Serving</p>
+                          </div>
+                          <div className="bg-blue-50 rounded p-2 border border-blue-100">
+                            <p className="font-medium text-xs">Next.js Frontend</p>
+                            <p className="text-xs text-gray-500">Dashboard & Portfolio</p>
+                          </div>
+                          <div className="bg-blue-50 rounded p-2 border border-blue-100">
+                            <p className="font-medium text-xs">AI Credit Analyst</p>
+                            <p className="text-xs text-gray-500">LangGraph Agent</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Risk Grade Reference */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Risk Grade Mapping</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-8 gap-2">
-                {riskGrades.map((item) => (
-                  <div key={item.grade} className={`p-3 rounded-lg text-center ${item.color}`}>
-                    <p className="font-bold text-lg">{item.grade}</p>
-                    <p className="text-xs mt-1">{item.range}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm text-gray-500 mt-4 text-center">
-                Risk grades are assigned based on Probability of Default (PD) ranges
-              </p>
             </CardContent>
           </Card>
         </>
@@ -624,75 +553,118 @@ export default function ArchitecturePage() {
       {/* ==================== SERVING TAB ==================== */}
       {activeTab === "serving" && (
         <>
-          <div className="grid grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Deployed Models</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+          {/* ML Models */}
+          <Card>
+            <CardHeader>
+              <CardTitle>ML Models (CML Model Registry)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                {mlModels.map((model) => (
+                  <div key={model.name} className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-indigo-900">PD Model (Probability of Default)</p>
-                      <Badge className="bg-green-100 text-green-700">Active</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">XGBoost classifier for default prediction</p>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-white p-2 rounded border border-indigo-100">
-                        <p className="text-gray-500">File</p>
-                        <p className="font-mono">pd_model_latest.pkl</p>
-                      </div>
-                      <div className="bg-white p-2 rounded border border-indigo-100">
-                        <p className="text-gray-500">Location</p>
-                        <p className="font-mono">s3://bucket/models/pd/</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-indigo-900">LGD Model (Loss Given Default)</p>
-                      <Badge className="bg-green-100 text-green-700">Active</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">Gradient Boosting regressor for loss estimation</p>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-white p-2 rounded border border-indigo-100">
-                        <p className="text-gray-500">File</p>
-                        <p className="font-mono">lgd_model_latest.pkl</p>
-                      </div>
-                      <div className="bg-white p-2 rounded border border-indigo-100">
-                        <p className="text-gray-500">Location</p>
-                        <p className="font-mono">s3://bucket/models/lgd/</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>API Endpoints</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {apiEndpoints.map((ep) => (
-                    <div key={ep.path} className="flex items-center p-2 bg-gray-50 rounded border border-gray-200">
-                      <Badge className={`mr-3 ${
-                        ep.method === "POST" ? "bg-green-100 text-green-700" :
-                        ep.method === "GET" ? "bg-blue-100 text-blue-700" :
-                        "bg-purple-100 text-purple-700"
-                      }`}>{ep.method}</Badge>
                       <div>
-                        <p className="font-mono text-sm">{ep.path}</p>
-                        <p className="text-xs text-gray-500">{ep.desc}</p>
+                        <p className="font-semibold text-purple-900">{model.name}</p>
+                        <p className="text-xs text-gray-500">{model.fullName}</p>
+                      </div>
+                      <Badge className="bg-green-100 text-green-700">Active</Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">{model.desc}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                      <div className="bg-white p-2 rounded border border-purple-100">
+                        <p className="text-gray-500">Algorithm</p>
+                        <p className="font-medium">{model.algorithm}</p>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-purple-100">
+                        <p className="text-gray-500">Type</p>
+                        <p className="font-medium">{model.type}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    <div className="bg-white p-2 rounded border border-purple-100 mb-2">
+                      <p className="text-xs text-gray-500 mb-1">Performance Metrics</p>
+                      <div className="flex gap-3">
+                        {Object.entries(model.metrics).map(([key, value]) => (
+                          <span key={key} className="text-xs"><span className="text-gray-500">{key}:</span> <span className="font-medium">{value}</span></span>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 font-mono">s3://bucket{model.path}{model.file}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
+          {/* Capital Models */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Capital Models (Deployed)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {capitalModels.map((model) => (
+                  <div key={model.name} className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-indigo-900">{model.name}</p>
+                        <p className="text-xs text-gray-500">{model.fullName}</p>
+                      </div>
+                      <Badge className="bg-indigo-100 text-indigo-700">{model.type}</Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">{model.desc}</p>
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-700 mb-1">Inputs</p>
+                        <div className="flex flex-wrap gap-1">
+                          {model.inputs.map((input) => (
+                            <span key={input} className="text-xs bg-white px-2 py-0.5 rounded border border-indigo-200">{input}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-700 mb-1">Outputs</p>
+                        <div className="flex flex-wrap gap-1">
+                          {model.outputs.map((output) => (
+                            <span key={output} className="text-xs bg-white px-2 py-0.5 rounded border border-indigo-200">{output}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-indigo-100">
+                      <p className="text-xs text-gray-500">Formula</p>
+                      <p className="text-xs font-mono text-indigo-800">{model.formula}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* API Endpoints */}
+          <Card>
+            <CardHeader>
+              <CardTitle>API Endpoints</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                {apiEndpoints.map((ep) => (
+                  <div key={ep.path} className="flex items-center p-2 bg-gray-50 rounded border border-gray-200">
+                    <Badge className={`mr-3 ${
+                      ep.method === "POST" ? "bg-green-100 text-green-700" :
+                      ep.method === "GET" ? "bg-blue-100 text-blue-700" :
+                      "bg-purple-100 text-purple-700"
+                    }`}>{ep.method}</Badge>
+                    <div>
+                      <p className="font-mono text-sm">{ep.path}</p>
+                      <p className="text-xs text-gray-500">{ep.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Scoring Pipeline */}
           <Card>
             <CardHeader>
               <CardTitle>Scoring Pipeline</CardTitle>
@@ -718,44 +690,97 @@ export default function ArchitecturePage() {
         </>
       )}
 
-      {/* ==================== APPS TAB ==================== */}
+      {/* ==================== CLOUDERA AI TAB ==================== */}
       {activeTab === "apps" && (
         <>
-          <div className="grid grid-cols-3 gap-6">
-            {applications.map((app) => (
-              <Card key={app.name}>
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <CardTitle className="text-lg">{app.name}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Badge className="bg-gray-100 text-gray-700 mb-3">{app.tech}</Badge>
-                  <p className="text-sm text-gray-600 mb-3">{app.desc}</p>
-                  <ul className="space-y-1">
-                    {app.features.map((f) => (
-                      <li key={f} className="text-xs text-gray-500 flex items-center">
-                        <svg className="w-3 h-3 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {/* CML Models Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                <CardTitle>CML Models</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-600 mb-4">Machine learning models registered in CML Model Registry and deployed for inference.</p>
+              <div className="grid grid-cols-2 gap-4">
+                {/* ML Models */}
+                <div className="space-y-3">
+                  <p className="font-medium text-sm text-purple-800">ML Models (Trained)</p>
+                  {mlModels.map((model) => (
+                    <div key={model.name} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-medium text-purple-900">{model.name}</p>
+                        <Badge className="bg-purple-100 text-purple-700 text-xs">{model.algorithm}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-600">{model.fullName}</p>
+                      <p className="text-xs text-gray-500 font-mono mt-1">{model.file}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Capital Models */}
+                <div className="space-y-3">
+                  <p className="font-medium text-sm text-indigo-800">Capital Models (Calculation)</p>
+                  {capitalModels.map((model) => (
+                    <div key={model.name} className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-medium text-indigo-900">{model.name}</p>
+                        <Badge className="bg-indigo-100 text-indigo-700 text-xs">{model.type}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-600">{model.fullName}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
+          {/* CML Applications Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <CardTitle>CML Applications</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-600 mb-4">Web applications deployed on CML with auto-scaling and load balancing.</p>
+              <div className="grid grid-cols-3 gap-6">
+                {cmlApplications.map((app) => (
+                  <div key={app.name} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-semibold text-blue-900">{app.name}</p>
+                      <Badge className="bg-green-100 text-green-700 text-xs">Running</Badge>
+                    </div>
+                    <Badge className="bg-gray-100 text-gray-700 mb-2">{app.tech}</Badge>
+                    <p className="text-sm text-gray-600 mb-3">{app.desc}</p>
+                    <ul className="space-y-1">
+                      {app.features.map((f) => (
+                        <li key={f} className="text-xs text-gray-500 flex items-center">
+                          <svg className="w-3 h-3 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Agent Architecture */}
           <Card>
             <CardHeader>
               <CardTitle>AI Credit Analyst Architecture</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex-1 p-4 bg-blue-50 rounded-lg border border-blue-200 mx-2 text-center">
                   <p className="font-medium text-blue-900">User Query</p>
                   <p className="text-xs text-gray-500 mt-1">Natural language</p>
@@ -778,11 +803,11 @@ export default function ArchitecturePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
                 <div className="flex-1 p-4 bg-indigo-50 rounded-lg border border-indigo-200 mx-2 text-center">
-                  <p className="font-medium text-indigo-900">Claude LLM</p>
+                  <p className="font-medium text-indigo-900">LLM</p>
                   <p className="text-xs text-gray-500 mt-1">Response generation</p>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 {agentTools.map((t) => (
                   <div key={t.tool} className="p-2 bg-gray-50 rounded border border-gray-200 text-center">
                     <p className="font-mono text-xs text-gray-700">{t.tool}</p>
@@ -793,39 +818,25 @@ export default function ArchitecturePage() {
             </CardContent>
           </Card>
 
+          {/* CML Jobs */}
           <Card>
             <CardHeader>
-              <CardTitle>CML Deployment</CardTitle>
+              <CardTitle>CML Jobs</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="font-medium text-blue-900 mb-2">CML Jobs</p>
-                  <ul className="text-xs text-gray-600 space-y-1">
-                    <li>- train_pd_model.py</li>
-                    <li>- train_lgd_model.py</li>
-                    <li>- validate_models.py</li>
-                    <li>- register_models.py</li>
-                  </ul>
-                </div>
-                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                  <p className="font-medium text-green-900 mb-2">CML Models</p>
-                  <ul className="text-xs text-gray-600 space-y-1">
-                    <li>- PD Model (XGBoost)</li>
-                    <li>- LGD Model (Gradient Boosting)</li>
-                    <li>- Model Registry integration</li>
-                    <li>- Version tracking</li>
-                  </ul>
-                </div>
-                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <p className="font-medium text-purple-900 mb-2">CML Application</p>
-                  <ul className="text-xs text-gray-600 space-y-1">
-                    <li>- FastAPI backend</li>
-                    <li>- Next.js frontend</li>
-                    <li>- WebSocket support</li>
-                    <li>- Auto-scaling</li>
-                  </ul>
-                </div>
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { name: "train_pd_model.py", desc: "PD model training", schedule: "On demand" },
+                  { name: "train_lgd_model.py", desc: "LGD model training", schedule: "On demand" },
+                  { name: "validate_models.py", desc: "Model validation", schedule: "After training" },
+                  { name: "register_models.py", desc: "Model registration", schedule: "After validation" },
+                ].map((job) => (
+                  <div key={job.name} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="font-mono text-xs text-gray-800 mb-1">{job.name}</p>
+                    <p className="text-xs text-gray-600">{job.desc}</p>
+                    <Badge className="bg-gray-100 text-gray-600 text-xs mt-2">{job.schedule}</Badge>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
