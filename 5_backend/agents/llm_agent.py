@@ -390,7 +390,7 @@ TOOLS = [
                 },
                 "credit_score": {
                     "type": "number",
-                    "description": "Credit score (300-850). Default 700."
+                    "description": "Credit score on 0-100 scale (0=worst, 100=best). Default 70."
                 },
                 "requested_loan_amount": {
                     "type": "number",
@@ -492,7 +492,7 @@ TOOLS = [
                 },
                 "credit_score": {
                     "type": "number",
-                    "description": "Credit score (300-850). Default 700."
+                    "description": "Credit score on 0-100 scale (0=worst, 100=best). Default 70."
                 }
             },
             "required": ["company_name", "annual_revenue", "total_assets", "total_liabilities", "industry", "requested_amount", "collateral_type"]
@@ -855,7 +855,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
         annual_revenue = tool_input.get("annual_revenue", 1000000)
         net_income = tool_input.get("net_income", 50000)
         loan_amount = tool_input.get("requested_loan_amount", 1000000)
-        credit_score = tool_input.get("credit_score", 700)
+        credit_score = tool_input.get("credit_score", 70)  # 0-100 scale
 
         equity = max(total_assets - total_liabilities, 1)
 
@@ -965,7 +965,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
         }
 
         bureau_data = {
-            "credit_score": tool_input.get("credit_score", 700),
+            "credit_score": tool_input.get("credit_score", 70),  # 0-100 scale
             "payment_index": 80,
             "utilization_rate": 0.50,
         }

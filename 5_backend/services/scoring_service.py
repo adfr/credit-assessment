@@ -5,6 +5,7 @@ Handles PD/LGD scoring using either local models or CML endpoints.
 
 import os
 import sys
+import requests
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -12,6 +13,14 @@ from datetime import datetime
 # Add endpoints to path for local imports
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/home/cdsw"))
 sys.path.insert(0, str(PROJECT_ROOT / "4_endpoints"))
+
+# CML Model Endpoint Configuration
+CML_MODEL_URL = os.environ.get(
+    "CML_MODEL_URL",
+    "https://modelservice.ml-40c12122-7f5.se-sandb.a465-9q4k.cloudera.site/model"
+)
+CML_PD_ACCESS_KEY = os.environ.get("CML_PD_ACCESS_KEY", "mzpyohap2x3r16t6pbe6mdiunw1xorzd")
+CML_LGD_ACCESS_KEY = os.environ.get("CML_LGD_ACCESS_KEY", "mvpbjq5laskfzpti8sonbd4fi0heocx8")
 
 
 class ScoringService:
@@ -21,21 +30,43 @@ class ScoringService:
     """
 
     def __init__(self):
-        self.mode = os.environ.get("SCORING_MODE", "local")  # local or cml
-        self._cml_client = None
+        self.mode = os.environ.get("SCORING_MODE", "cml")  # cml or local
+        self.cml_url = CML_MODEL_URL
+        self.pd_access_key = CML_PD_ACCESS_KEY
+        self.lgd_access_key = CML_LGD_ACCESS_KEY
+        print(f"[SCORING_SERVICE] Initialized in {self.mode} mode")
 
-    @property
-    def cml_client(self):
-        """Lazy load CML client."""
-        if self._cml_client is None:
-            try:
-                from cml_client import CMLModelClient, CMLConfig
-                config = CMLConfig.from_env()
-                self._cml_client = CMLModelClient(config)
-            except ImportError:
-                print("[SCORING_SERVICE] CML client not available, using local mode")
-                self.mode = "local"
-        return self._cml_client
+    def _call_cml_endpoint(self, access_key: str, features: Dict[str, Any], model_name: str) -> Dict[str, Any]:
+        """Call CML model endpoint."""
+        payload = {
+            "accessKey": access_key,
+            "request": features
+        }
+
+        print(f"[SCORING_SERVICE] Calling CML {model_name} endpoint...")
+        print(f"[SCORING_SERVICE] URL: {self.cml_url}")
+        print(f"[SCORING_SERVICE] Features: {list(features.keys())}")
+
+        try:
+            response = requests.post(
+                self.cml_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            print(f"[SCORING_SERVICE] CML {model_name} response: {result}")
+
+            # CML returns response in 'response' key
+            if "response" in result:
+                return result["response"]
+            return result
+
+        except requests.exceptions.RequestException as e:
+            print(f"[SCORING_SERVICE] CML {model_name} error: {e}")
+            raise
 
     def predict_pd(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -47,10 +78,13 @@ class ScoringService:
         Returns:
             Dictionary with pd_score, risk_grade, decision
         """
-        if self.mode == "cml" and self.cml_client:
-            return self.cml_client.predict_pd(features)
+        if self.mode == "cml":
+            try:
+                return self._call_cml_endpoint(self.pd_access_key, features, "PD")
+            except Exception as e:
+                print(f"[SCORING_SERVICE] CML PD failed, falling back to local: {e}")
 
-        # Local prediction
+        # Local prediction (fallback)
         return self._local_pd_prediction(features)
 
     def predict_lgd(self, features: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,10 +97,13 @@ class ScoringService:
         Returns:
             Dictionary with lgd_score, recovery_rate
         """
-        if self.mode == "cml" and self.cml_client:
-            return self.cml_client.predict_lgd(features)
+        if self.mode == "cml":
+            try:
+                return self._call_cml_endpoint(self.lgd_access_key, features, "LGD")
+            except Exception as e:
+                print(f"[SCORING_SERVICE] CML LGD failed, falling back to local: {e}")
 
-        # Local prediction
+        # Local prediction (fallback)
         return self._local_lgd_prediction(features)
 
     def score_application(
