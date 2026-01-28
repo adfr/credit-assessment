@@ -60,7 +60,7 @@ export default function PortfolioPage() {
     async function fetchLoans() {
       setIsLoading(true);
       try {
-        const params: Record<string, string | number> = { limit: 100 };
+        const params: Record<string, string | number> = { limit: 1000 };
         if (statusFilter) params.status = statusFilter;
         if (industryFilter) params.industry = industryFilter;
         if (paymentFilter) params.payment_status = paymentFilter;

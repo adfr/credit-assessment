@@ -195,7 +195,7 @@ async def list_loans(
     industry: Optional[str] = None,
     region: Optional[str] = None,
     payment_status: Optional[str] = None,
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=1000, ge=1, le=10000),
     offset: int = Query(default=0, ge=0),
 ):
     """List loans with optional filtering."""

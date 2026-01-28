@@ -828,7 +828,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
             max_pd=tool_input.get("max_pd"),
             sort_by=tool_input.get("sort_by", "outstanding_balance"),
             sort_order=tool_input.get("sort_order", "desc"),
-            limit=tool_input.get("limit", 20)
+            limit=tool_input.get("limit", 1000)
         )
 
     elif tool_name == "get_loan_details":

@@ -226,7 +226,7 @@ def list_loans(
     max_pd: float = None,
     sort_by: str = "outstanding_balance",
     sort_order: str = "desc",
-    limit: int = 20
+    limit: int = 1000
 ) -> dict[str, Any]:
     """
     List loans with optional filtering and sorting.
@@ -241,7 +241,7 @@ def list_loans(
         max_pd: Maximum PD score
         sort_by: Field to sort by (outstanding_balance, pd_score, company_name)
         sort_order: Sort order ('asc' or 'desc')
-        limit: Max number of loans to return (default 20, max 100)
+        limit: Max number of loans to return (default 1000, max 10000)
 
     Returns:
         dict with loans list and summary statistics
@@ -292,7 +292,7 @@ def list_loans(
         query += f" ORDER BY {sort_by} {sort_order}"
 
         # Limit
-        limit = min(limit, 100)
+        limit = min(limit, 10000)
         query += f" LIMIT {limit}"
 
         cursor.execute(query, params)
