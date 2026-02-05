@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+  <defs>
+    <!-- Main gradient background -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a237e;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#283593;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3949ab;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Accent gradient -->
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00bcd4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4dd0e1;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Card gradient -->
+    <linearGradient id="cardGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.15" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.05" />
+    </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Drop shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#bgGradient)"/>
+
+  <!-- Decorative grid pattern -->
+  <g opacity="0.1">
+    <line x1="0" y1="100" x2="800" y2="100" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="200" x2="800" y2="200" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="300" x2="800" y2="300" stroke="white" stroke-width="1"/>
+    <line x1="200" y1="0" x2="200" y2="450" stroke="white" stroke-width="1"/>
+    <line x1="400" y1="0" x2="400" y2="450" stroke="white" stroke-width="1"/>
+    <line x1="600" y1="0" x2="600" y2="450" stroke="white" stroke-width="1"/>
+  </g>
+
+  <!-- Decorative circles -->
+  <circle cx="700" cy="80" r="120" fill="white" opacity="0.03"/>
+  <circle cx="100" cy="380" r="100" fill="white" opacity="0.03"/>
+
+  <!-- Main content card -->
+  <rect x="40" y="40" width="720" height="370" rx="16" fill="url(#cardGradient)" filter="url(#shadow)"/>
+  <rect x="40" y="40" width="720" height="370" rx="16" stroke="white" stroke-opacity="0.2" stroke-width="1" fill="none"/>
+
+  <!-- Icon area - Credit/Risk symbol -->
+  <g transform="translate(80, 80)">
+    <!-- Shield base -->
+    <path d="M60 10 L110 30 L110 70 C110 100 85 125 60 135 C35 125 10 100 10 70 L10 30 Z"
+          fill="url(#accentGradient)" filter="url(#glow)"/>
+
+    <!-- Checkmark inside shield -->
+    <path d="M40 70 L55 85 L85 50" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Dollar sign next to shield -->
+    <g transform="translate(130, 40)">
+      <circle cx="30" cy="35" r="35" fill="white" opacity="0.1"/>
+      <text x="30" y="50" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="url(#accentGradient)" text-anchor="middle">$</text>
+    </g>
+  </g>
+
+  <!-- Chart visualization -->
+  <g transform="translate(520, 80)">
+    <!-- Chart background -->
+    <rect x="0" y="0" width="200" height="120" rx="8" fill="white" opacity="0.1"/>
+
+    <!-- Bar chart bars -->
+    <rect x="20" y="70" width="25" height="40" fill="#4dd0e1" rx="2"/>
+    <rect x="55" y="50" width="25" height="60" fill="#00bcd4" rx="2"/>
+    <rect x="90" y="30" width="25" height="80" fill="#4dd0e1" rx="2"/>
+    <rect x="125" y="45" width="25" height="65" fill="#00bcd4" rx="2"/>
+    <rect x="160" y="25" width="25" height="85" fill="#4dd0e1" rx="2"/>
+
+    <!-- Trend line -->
+    <path d="M32 65 L67 45 L102 25 L137 40 L172 20" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+
+    <!-- Data points -->
+    <circle cx="32" cy="65" r="4" fill="white"/>
+    <circle cx="67" cy="45" r="4" fill="white"/>
+    <circle cx="102" cy="25" r="4" fill="white"/>
+    <circle cx="137" cy="40" r="4" fill="white"/>
+    <circle cx="172" cy="20" r="4" fill="white"/>
+  </g>
+
+  <!-- AI Brain icon -->
+  <g transform="translate(320, 100)">
+    <circle cx="40" cy="40" r="40" fill="white" opacity="0.1"/>
+    <!-- Brain outline -->
+    <path d="M25 50 C15 45 15 30 25 25 C25 15 40 10 50 20 C60 10 75 15 75 25 C85 30 85 45 75 50 C75 60 60 65 50 55 C40 65 25 60 25 50"
+          stroke="url(#accentGradient)" stroke-width="3" fill="none"/>
+    <!-- Neural connections -->
+    <circle cx="35" cy="35" r="3" fill="#4dd0e1"/>
+    <circle cx="50" cy="30" r="3" fill="#4dd0e1"/>
+    <circle cx="65" cy="35" r="3" fill="#4dd0e1"/>
+    <circle cx="40" cy="48" r="3" fill="#4dd0e1"/>
+    <circle cx="60" cy="48" r="3" fill="#4dd0e1"/>
+    <line x1="35" y1="35" x2="50" y2="30" stroke="#4dd0e1" stroke-width="1.5" opacity="0.6"/>
+    <line x1="50" y1="30" x2="65" y2="35" stroke="#4dd0e1" stroke-width="1.5" opacity="0.6"/>
+    <line x1="35" y1="35" x2="40" y2="48" stroke="#4dd0e1" stroke-width="1.5" opacity="0.6"/>
+    <line x1="65" y1="35" x2="60" y2="48" stroke="#4dd0e1" stroke-width="1.5" opacity="0.6"/>
+    <line x1="40" y1="48" x2="60" y2="48" stroke="#4dd0e1" stroke-width="1.5" opacity="0.6"/>
+  </g>
+
+  <!-- Title -->
+  <text x="80" y="260" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="white">Credit Risk Assessment</text>
+  <text x="80" y="300" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="url(#accentGradient)">Platform</text>
+
+  <!-- Subtitle / Features -->
+  <text x="80" y="340" font-family="Arial, sans-serif" font-size="16" fill="white" opacity="0.8">PD/LGD Models</text>
+  <circle cx="200" cy="336" r="3" fill="#4dd0e1"/>
+  <text x="215" y="340" font-family="Arial, sans-serif" font-size="16" fill="white" opacity="0.8">LangGraph Agents</text>
+  <circle cx="370" cy="336" r="3" fill="#4dd0e1"/>
+  <text x="385" y="340" font-family="Arial, sans-serif" font-size="16" fill="white" opacity="0.8">Basel IRB Capital</text>
+
+  <text x="80" y="370" font-family="Arial, sans-serif" font-size="16" fill="white" opacity="0.8">RAG Policy Analysis</text>
+  <circle cx="235" cy="366" r="3" fill="#4dd0e1"/>
+  <text x="250" y="370" font-family="Arial, sans-serif" font-size="16" fill="white" opacity="0.8">Portfolio Monitoring</text>
+  <circle cx="420" cy="366" r="3" fill="#4dd0e1"/>
+  <text x="435" y="370" font-family="Arial, sans-serif" font-size="16" fill="white" opacity="0.8">Model Drift Detection</text>
+
+  <!-- Cloudera badge -->
+  <g transform="translate(620, 280)">
+    <rect x="0" y="0" width="120" height="36" rx="18" fill="url(#accentGradient)"/>
+    <text x="60" y="24" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle">CLOUDERA AI</text>
+  </g>
+</svg>

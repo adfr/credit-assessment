@@ -1,0 +1,49 @@
+name: Cloudera
+
+entries:
+  - title: Credit Risk Assessment Platform
+    label: CreditRiskAssessmentPlatform
+    short_description: |
+        End-to-end AI-powered credit risk assessment platform with PD/LGD models, LangGraph agentic workflows, Basel IRB capital calculations, and real-time portfolio monitoring.
+    long_description: |
+        The Credit Risk Assessment Platform AMP is a production-ready solution for financial institutions to automate credit approval decisions, monitor portfolio risk, and ensure regulatory compliance. It combines classical credit risk modeling (PD/LGD) with modern AI capabilities including LangGraph-powered reasoning agents and RAG-based policy analysis.
+
+        Key capabilities include:
+        - ML models for Probability of Default (PD) and Loss Given Default (LGD) scoring using XGBoost
+        - Basel IRB regulatory capital and Economic Capital (VaR) calculations
+        - LangGraph agentic workflow with tool calling for portfolio analysis and risk calculations
+        - RAG integration for intelligent policy document queries with source citations
+        - Real-time portfolio health dashboard with concentration analysis and vintage tracking
+        - Model drift detection using Population Stability Index (PSI) with automated retraining triggers
+        - Document processing for financial statements, tax returns, and bank statements
+        - Spark jobs for distributed feature engineering and batch scoring on Apache Iceberg
+    long_description_html: |
+      The Credit Risk Assessment Platform AMP is a production-ready solution for financial institutions to automate credit approval decisions, monitor portfolio risk, and ensure regulatory compliance. It combines classical credit risk modeling (PD/LGD) with modern AI capabilities including LangGraph-powered reasoning agents and RAG-based policy analysis.
+      <div style="margin-top:10px"><b>Key Capabilities:</b></div>
+      <ul style="margin-top:5px">
+        <li><b>ML Credit Scoring</b> - PD and LGD models using XGBoost with MLflow tracking</li>
+        <li><b>Capital Calculations</b> - Basel IRB regulatory capital and Economic Capital (VaR 99.9%)</li>
+        <li><b>Agentic AI</b> - LangGraph reasoning agent with tool calling for portfolio analysis</li>
+        <li><b>RAG Policy Analysis</b> - Query policy documents with source citations</li>
+        <li><b>Portfolio Dashboard</b> - Real-time health metrics, concentration analysis, vintage tracking</li>
+        <li><b>Model Monitoring</b> - Drift detection (PSI) with automated retraining triggers</li>
+        <li><b>Document Processing</b> - Financial statements, tax returns, bank statements</li>
+        <li><b>Data Pipeline</b> - Spark jobs on Apache Iceberg for feature engineering and batch scoring</li>
+      </ul>
+      <div style="margin-top:10px"><b>IMPORTANT:</b> Please read the following before proceeding.</div>
+      <div style="margin-top:10px">This AMP includes or otherwise depends on certain third party software packages. Information about such third party software packages are made available in the notice file associated with this AMP. By configuring and launching this AMP, you will cause such third party software packages to be downloaded and installed into your environment, in some instances, from third parties' websites. For each third party software package, please see the notice file and the applicable websites for more information, including the applicable license terms.</div>
+      <div style="margin-top:10px">If you do not wish to download and install the third party software packages, do not configure, launch or otherwise use this AMP. By configuring, launching or otherwise using the AMP, you acknowledge the foregoing statement and agree that Cloudera is not responsible or liable in any way for the third party software packages.</div>
+    image_path: >-
+      https://raw.githubusercontent.com/cloudera/CML_AMP_Credit_Risk_Assessment/refs/heads/main/assets/images/amp-card.png
+    tags:
+      - Credit Risk
+      - Machine Learning
+      - Agents
+      - LangGraph
+      - RAG
+      - Portfolio Management
+      - Basel IRB
+      - Financial Services
+    git_url: "https://github.com/cloudera/CML_AMP_Credit_Risk_Assessment.git"
+    is_prototype: true
+    is_new: true
