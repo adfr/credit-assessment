@@ -325,6 +325,44 @@ After deployment, applications will be available at:
 - **API**: `https://credit-api.<workspace>.<cml-domain>`
 - **Frontend**: `https://credit-app.<workspace>.<cml-domain>`
 
+### Important: Update Frontend API URL After First Deployment
+
+The frontend's backend API URL (`NEXT_PUBLIC_API_URL`) is **baked into the build at compile time**. During the initial AMP deployment, the backend application has not been created yet, so the frontend is built with an incorrect or missing API URL. This means **the frontend will not be able to reach the backend after the first deployment**.
+
+To fix this, you must update the API URL and rebuild the frontend:
+
+#### Option A: Re-run the AMP
+
+1. Go to your CML project
+2. Note the backend application URL (found under **Applications** → `credit-risk-api` → copy the full URL)
+3. Set the environment variable `NEXT_PUBLIC_API_URL` to the backend URL (e.g. `https://credit-api-xxxxx.ml-xxxx.your-domain.cloudera.site/api`) in **Project Settings** → **Environment Variables**
+4. Re-run the AMP — this will re-trigger `0_setup/configure_frontend.py` and rebuild the frontend with the correct URL
+
+#### Option B: Rebuild Manually via CML Session Console
+
+1. Open a **Session** in your CML project (Python 3.10, 2 CPU / 4 GB)
+2. Note the backend URL from **Applications** → `credit-risk-api`
+3. Run the following commands in the session terminal:
+
+```bash
+# Load nvm and node
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+# Set the correct backend API URL
+export NEXT_PUBLIC_API_URL="https://credit-api-xxxxx.ml-xxxx.your-domain.cloudera.site/api"
+
+# Write it to .env.local so the build picks it up
+echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" > 6_frontend/.env.local
+
+# Rebuild the frontend
+cd 6_frontend
+npm install --include=dev
+npm run build
+```
+
+4. Restart the frontend application from **Applications** → `credit-risk-frontend` → **Restart**
+
 ---
 
 ## Setup Scheduled Jobs
